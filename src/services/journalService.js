@@ -1,0 +1,472 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore'
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { db, storage } from '../firebase/config'
+import { formatDateKey } from '../utils/date'
+
+function entryRef(uid, dateKey = formatDateKey(new Date())) {
+  return doc(db, 'users', uid, 'entries', dateKey)
+}
+
+function entriesCollection(uid) {
+  return collection(db, 'users', uid, 'entries')
+}
+
+function notificationsCollection(uid) {
+  return collection(db, 'users', uid, 'notifications')
+}
+
+function sanitizeFileName(fileName) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, '-')
+}
+
+function deriveDisplayName(email = '') {
+  const local = email.split('@')[0] || 'You'
+  const cleaned = local.replace(/[^a-zA-Z0-9]/g, ' ').trim()
+  if (!cleaned) {
+    return 'You'
+  }
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function normalizePartnerCode(rawCode = '') {
+  return String(rawCode || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '')
+}
+
+function createPartnerCode(uid = '') {
+  const clean = String(uid || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+  const first = clean.slice(0, 6).padEnd(6, 'X')
+  const last = clean.slice(-6).padStart(6, 'X')
+  return `UV-${first}${last}`
+}
+
+export async function saveDailyEntry(uid, dateKey, payload) {
+  await setDoc(
+    entryRef(uid, dateKey),
+    {
+      ...payload,
+      date: dateKey,
+      monthDay: dateKey.slice(5),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export function subscribeEntryByDate(uid, dateKey, callback, onError) {
+  return onSnapshot(
+    entryRef(uid, dateKey),
+    (snapshot) => {
+      callback(snapshot.exists() ? snapshot.data() : null)
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export function subscribeUserEntries(uid, callback, maxItems = 31, onError) {
+  const entriesQuery = query(entriesCollection(uid), orderBy('date', 'desc'), limit(maxItems))
+
+  return onSnapshot(
+    entriesQuery,
+    (snapshot) => {
+      callback(snapshot.docs.map((item) => item.data()))
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export async function uploadEntryImage(uid, dateKey, file, previousPath = '') {
+  const safeFileName = sanitizeFileName(file.name)
+  const filePath = `journal/${uid}/${dateKey}-${Date.now()}-${safeFileName}`
+  const imageRef = ref(storage, filePath)
+
+  if (previousPath) {
+    await deleteObject(ref(storage, previousPath)).catch(() => {})
+  }
+
+  await uploadBytes(imageRef, file)
+  const imageUrl = await getDownloadURL(imageRef)
+
+  return { imageUrl, imagePath: filePath }
+}
+
+export async function deleteDailyEntry(uid, dateKey, imagePath = '') {
+  if (imagePath) {
+    await deleteObject(ref(storage, imagePath)).catch(() => {})
+  }
+
+  await deleteDoc(entryRef(uid, dateKey))
+}
+
+export async function updateUserMood(uid, mood) {
+  const dateKey = formatDateKey(new Date())
+  await saveDailyEntry(uid, dateKey, { mood })
+}
+
+export async function updateUserStatus(uid, email, status) {
+  await setDoc(
+    doc(db, 'statuses', uid),
+    {
+      uid,
+      email,
+      status,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function ensureStatusDocument(uid, email) {
+  const statusRef = doc(db, 'statuses', uid)
+  const statusSnapshot = await getDoc(statusRef)
+  const defaultProfile = {
+    uid,
+    email,
+    status: 'Free',
+    displayName: deriveDisplayName(email),
+    partnerName: 'Love',
+    greetingTemplate: '',
+    missMeMessage: '',
+    gossipEntries: [],
+    partnerCode: createPartnerCode(uid),
+    partnerUid: '',
+    photoURL: '',
+    photoPath: '',
+    onboardingDone: false,
+    loadingTitleForPartner: '',
+    loadingCaptionForPartner: '',
+    updatedAt: serverTimestamp(),
+  }
+
+  if (!statusSnapshot.exists()) {
+    await setDoc(statusRef, defaultProfile)
+    return
+  }
+
+  const data = statusSnapshot.data()
+  const patch = {}
+
+  if (!data?.displayName) {
+    patch.displayName = deriveDisplayName(email)
+  }
+  if (!data?.partnerName) {
+    patch.partnerName = 'Love'
+  }
+  if (typeof data?.greetingTemplate !== 'string') {
+    patch.greetingTemplate = ''
+  }
+  if (typeof data?.missMeMessage !== 'string') {
+    patch.missMeMessage = ''
+  }
+  if (!Array.isArray(data?.gossipEntries)) {
+    patch.gossipEntries = []
+  }
+  if (typeof data?.partnerCode !== 'string' || !normalizePartnerCode(data.partnerCode)) {
+    patch.partnerCode = createPartnerCode(uid)
+  }
+  if (typeof data?.partnerUid !== 'string') {
+    patch.partnerUid = ''
+  }
+  if (typeof data?.photoURL !== 'string') {
+    patch.photoURL = ''
+  }
+  if (typeof data?.photoPath !== 'string') {
+    patch.photoPath = ''
+  }
+  if (typeof data?.onboardingDone !== 'boolean') {
+    patch.onboardingDone = false
+  }
+  if (typeof data?.loadingTitleForPartner !== 'string') {
+    patch.loadingTitleForPartner = ''
+  }
+  if (typeof data?.loadingCaptionForPartner !== 'string') {
+    patch.loadingCaptionForPartner = ''
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await setDoc(statusRef, patch, { merge: true })
+  }
+}
+
+export function subscribeStatusMap(callback, onError) {
+  return onSnapshot(
+    collection(db, 'statuses'),
+    (snapshot) => {
+      const map = {}
+
+      for (const item of snapshot.docs) {
+        map[item.id] = item.data()
+      }
+
+      callback(map)
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export async function updateUserPersonalization(uid, email, payload) {
+  await setDoc(
+    doc(db, 'statuses', uid),
+    {
+      uid,
+      email,
+      displayName: (payload.displayName || '').trim(),
+      partnerName: (payload.partnerName || '').trim(),
+      greetingTemplate: (payload.greetingTemplate || '').trim(),
+      missMeMessage: (payload.missMeMessage || '').trim(),
+      loadingTitleForPartner: (payload.loadingTitleForPartner || '').trim(),
+      loadingCaptionForPartner: (payload.loadingCaptionForPartner || '').trim(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function updateUserGossipEntries(uid, email, entries) {
+  const sanitized = (Array.isArray(entries) ? entries : [])
+    .slice(0, 40)
+    .map((item) => ({
+      id: String(item.id || ''),
+      tag: String(item.tag || '').slice(0, 24),
+      text: String(item.text || '').slice(0, 280),
+      createdAt: Number(item.createdAt || Date.now()),
+    }))
+
+  await setDoc(
+    doc(db, 'statuses', uid),
+    {
+      uid,
+      email,
+      gossipEntries: sanitized,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function saveInAppNotification(uid, payload = {}) {
+  const title = String(payload.title || '').trim()
+  const body = String(payload.body || '').trim()
+  const type = String(payload.type || 'info').trim()
+
+  if (!title && !body) {
+    return
+  }
+
+  await addDoc(notificationsCollection(uid), {
+    title: title || 'UsVault',
+    body: body || '',
+    type: type || 'info',
+    read: false,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export function subscribeUserNotifications(uid, callback, maxItems = 60, onError) {
+  const listQuery = query(notificationsCollection(uid), orderBy('createdAt', 'desc'), limit(maxItems))
+
+  return onSnapshot(
+    listQuery,
+    (snapshot) => {
+      callback(
+        snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        })),
+      )
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export async function markAllNotificationsRead(uid) {
+  const unreadQuery = query(notificationsCollection(uid), where('read', '==', false), limit(100))
+  const unreadSnapshot = await getDocs(unreadQuery)
+
+  if (unreadSnapshot.empty) {
+    return
+  }
+
+  const batch = writeBatch(db)
+  unreadSnapshot.docs.forEach((item) => {
+    batch.set(item.ref, { read: true }, { merge: true })
+  })
+  await batch.commit()
+}
+
+export async function deleteUserNotification(uid, notificationId) {
+  if (!notificationId) {
+    return
+  }
+  await deleteDoc(doc(db, 'users', uid, 'notifications', notificationId))
+}
+
+export async function saveUserProfile(uid, email, profilePayload = {}) {
+  const statusRef = doc(db, 'statuses', uid)
+  const displayName = String(profilePayload.displayName || '').trim()
+  const partnerName = String(profilePayload.partnerName || '').trim()
+  const photoFile = profilePayload.photoFile || null
+
+  let photoURL = ''
+  let photoPath = ''
+
+  if (photoFile) {
+    const safeFileName = sanitizeFileName(photoFile.name || 'avatar.jpg')
+    photoPath = `profiles/${uid}/avatar-${Date.now()}-${safeFileName}`
+    const avatarRef = ref(storage, photoPath)
+    await uploadBytes(avatarRef, photoFile)
+    photoURL = await getDownloadURL(avatarRef)
+  }
+
+  await setDoc(
+    statusRef,
+    {
+      uid,
+      email,
+      displayName,
+      partnerName,
+      partnerCode: createPartnerCode(uid),
+      photoURL,
+      photoPath,
+      onboardingDone: true,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+
+  return { displayName, photoURL, photoPath }
+}
+
+export async function updateUserProfileDetails(uid, email, payload = {}) {
+  const statusRef = doc(db, 'statuses', uid)
+  const displayName = String(payload.displayName || '').trim()
+  const partnerName = String(payload.partnerName || '').trim()
+  const photoFile = payload.photoFile || null
+  const previousPhotoPath = String(payload.previousPhotoPath || '')
+
+  const patch = {
+    uid,
+    email,
+    displayName,
+    partnerName,
+    updatedAt: serverTimestamp(),
+  }
+
+  if (photoFile) {
+    const safeFileName = sanitizeFileName(photoFile.name || 'avatar.jpg')
+    const photoPath = `profiles/${uid}/avatar-${Date.now()}-${safeFileName}`
+    const avatarRef = ref(storage, photoPath)
+
+    await uploadBytes(avatarRef, photoFile)
+    const photoURL = await getDownloadURL(avatarRef)
+
+    patch.photoURL = photoURL
+    patch.photoPath = photoPath
+
+    if (previousPhotoPath) {
+      await deleteObject(ref(storage, previousPhotoPath)).catch(() => {})
+    }
+  }
+
+  await setDoc(statusRef, patch, { merge: true })
+}
+
+export async function linkPartnerByCode(uid, email, partnerCode) {
+  const normalizedCode = normalizePartnerCode(partnerCode)
+  if (!normalizedCode) {
+    throw new Error('invalid-code')
+  }
+
+  const myRef = doc(db, 'statuses', uid)
+  const mySnapshot = await getDoc(myRef)
+  if (!mySnapshot.exists()) {
+    throw new Error('profile-missing')
+  }
+
+  const myData = mySnapshot.data()
+  const myExistingPartnerUid = String(myData?.partnerUid || '')
+
+  const partnerQuery = query(
+    collection(db, 'statuses'),
+    where('partnerCode', '==', normalizedCode),
+    limit(1),
+  )
+  const partnerSnapshot = await getDocs(partnerQuery)
+  if (partnerSnapshot.empty) {
+    throw new Error('code-not-found')
+  }
+
+  const partnerDoc = partnerSnapshot.docs[0]
+  const partnerUid = partnerDoc.id
+  const partnerData = partnerDoc.data()
+  const partnerExistingUid = String(partnerData?.partnerUid || '')
+
+  if (partnerUid === uid) {
+    throw new Error('self-link')
+  }
+  if (myExistingPartnerUid && myExistingPartnerUid !== partnerUid) {
+    throw new Error('already-linked')
+  }
+  if (partnerExistingUid && partnerExistingUid !== uid) {
+    throw new Error('partner-already-linked')
+  }
+
+  const batch = writeBatch(db)
+  batch.set(
+    myRef,
+    {
+      uid,
+      email,
+      partnerUid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+  batch.set(
+    partnerDoc.ref,
+    {
+      uid: partnerUid,
+      email: partnerData?.email || '',
+      partnerUid: uid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+  await batch.commit()
+
+  return {
+    partnerUid,
+    partnerLabel: partnerData?.displayName || partnerData?.email || 'Partner',
+  }
+}
+
+export { formatDateKey }

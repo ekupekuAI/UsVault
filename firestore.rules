@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Allowed couple emails.
+    function isAllowedEmail() {
+      return request.auth.token.email in [
+        "usvault.one@usvault.app",
+        "usvault.two@usvault.app"
+      ];
+    }
+
+    match /users/{userId}/entries/{entryId} {
+      allow read, write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+    }
+
+    match /statuses/{userId} {
+      allow read: if signedIn() && isAllowedEmail();
+      allow write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+    }
+  }
+}

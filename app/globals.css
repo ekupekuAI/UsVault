@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-background: hsl(280 100% 97%);
+  --color-foreground: hsl(280 10% 20%);
+  --color-card: hsl(280 30% 97%);
+  --color-card-foreground: hsl(280 10% 20%);
+  --color-popover: hsl(280 100% 100%);
+  --color-popover-foreground: hsl(280 10% 20%);
+  --color-primary: hsl(330 100% 72%);
+  --color-primary-foreground: hsl(280 10% 20%);
+  --color-secondary: hsl(270 100% 80%);
+  --color-secondary-foreground: hsl(280 10% 20%);
+  --color-muted: hsl(280 20% 90%);
+  --color-muted-foreground: hsl(280 5% 45%);
+  --color-accent: hsl(320 100% 75%);
+  --color-accent-foreground: hsl(280 10% 20%);
+  --color-destructive: hsl(0 100% 60%);
+  --color-destructive-foreground: hsl(280 10% 20%);
+  --color-border: hsl(280 20% 90%);
+  --color-input: hsl(280 30% 96%);
+  --color-ring: hsl(330 100% 72%);
+  --radius: 1.5rem;
+
+  /* Status colors */
+  --color-status-free: hsl(120 100% 50%);
+  --color-status-busy: hsl(200 100% 50%);
+  --color-status-someone: hsl(0 100% 50%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-background via-purple-100/30 to-pink-100/30 text-foreground;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/30 backdrop-blur-xl border border-white/40 rounded-3xl;
+  }
+
+  .glass-dark {
+    @apply bg-white/20 backdrop-blur-lg border border-white/20 rounded-3xl;
+  }
+
+  .memory-image {
+    @apply rounded-2xl object-cover w-full h-full;
+  }
+}
