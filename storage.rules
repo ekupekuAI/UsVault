@@ -5,16 +5,22 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Allowed couple emails.
-    function isAllowedEmail() {
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
       return request.auth.token.email in [
-        "usvault.one@usvault.app",
-        "usvault.two@usvault.app"
+        "gekansh2008@gmail.com"
       ];
     }
 
     match /journal/{userId}/{fileName} {
-      allow read, write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    match /profiles/{userId}/{fileName} {
+      allow read, write: if isOwner(userId) || isAdmin();
     }
   }
 }

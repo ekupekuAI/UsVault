@@ -30,6 +30,10 @@ function notificationsCollection(uid) {
   return collection(db, 'users', uid, 'notifications')
 }
 
+function userControlRef(uid) {
+  return doc(db, 'user_controls', uid)
+}
+
 function sanitizeFileName(fileName) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '-')
 }
@@ -59,6 +63,39 @@ function createPartnerCode(uid = '') {
   const first = clean.slice(0, 6).padEnd(6, 'X')
   const last = clean.slice(-6).padStart(6, 'X')
   return `UV-${first}${last}`
+}
+
+function normalizeAccessControl(data = {}) {
+  return {
+    uid: String(data.uid || ''),
+    email: String(data.email || '').trim().toLowerCase(),
+    canUseApp: data.canUseApp !== false,
+    banned: data.banned === true,
+    bannedReason: String(data.bannedReason || '').trim(),
+    bannedAt: data.bannedAt || null,
+    bannedByUid: String(data.bannedByUid || ''),
+    bannedByEmail: String(data.bannedByEmail || '').trim().toLowerCase(),
+    updatedAt: data.updatedAt || null,
+  }
+}
+
+export function isUserBlocked(accessControl = null) {
+  if (!accessControl) {
+    return false
+  }
+  return accessControl.banned === true || accessControl.canUseApp === false
+}
+
+export function getBlockedMessage(accessControl = null) {
+  if (!accessControl) {
+    return 'Your account does not have access to this app.'
+  }
+
+  const reason = String(accessControl.bannedReason || '').trim()
+  if (reason) {
+    return `Access restricted by admin: ${reason}`
+  }
+  return 'Your account access has been restricted by admin.'
 }
 
 export async function saveDailyEntry(uid, dateKey, payload) {
@@ -211,6 +248,144 @@ export async function ensureStatusDocument(uid, email) {
   if (Object.keys(patch).length > 0) {
     await setDoc(statusRef, patch, { merge: true })
   }
+}
+
+export async function ensureUserAccessControl(uid, email) {
+  const controlDocumentRef = userControlRef(uid)
+  const snapshot = await getDoc(controlDocumentRef)
+
+  if (!snapshot.exists()) {
+    const initialData = {
+      uid,
+      email: String(email || '').trim().toLowerCase(),
+      canUseApp: true,
+      banned: false,
+      bannedReason: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+    await setDoc(controlDocumentRef, initialData, { merge: false })
+    return normalizeAccessControl(initialData)
+  }
+
+  return normalizeAccessControl(snapshot.data())
+}
+
+export async function getUserAccessControl(uid) {
+  const snapshot = await getDoc(userControlRef(uid))
+  return snapshot.exists() ? normalizeAccessControl(snapshot.data()) : null
+}
+
+export function subscribeUserAccessControl(uid, callback, onError) {
+  return onSnapshot(
+    userControlRef(uid),
+    (snapshot) => {
+      callback(snapshot.exists() ? normalizeAccessControl(snapshot.data()) : null)
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export function subscribeAllUsersForAdmin(callback, onError) {
+  return onSnapshot(
+    collection(db, 'statuses'),
+    (snapshot) => {
+      callback(
+        snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        })),
+      )
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export function subscribeAllUserControlsForAdmin(callback, onError) {
+  return onSnapshot(
+    collection(db, 'user_controls'),
+    (snapshot) => {
+      const map = {}
+      snapshot.docs.forEach((item) => {
+        map[item.id] = normalizeAccessControl(item.data())
+      })
+      callback(map)
+    },
+    (error) => {
+      onError?.(error)
+    },
+  )
+}
+
+export async function setUserAccessByAdmin(adminUser, targetUser, updates = {}) {
+  const targetUid = String(targetUser?.uid || '')
+  const targetEmail = String(targetUser?.email || '').trim().toLowerCase()
+  const bannedReason = String(updates.bannedReason || '').trim()
+  const banned = updates.banned === true
+  const canUseApp = updates.canUseApp !== false
+
+  if (!targetUid) {
+    throw new Error('missing-target')
+  }
+
+  await setDoc(
+    userControlRef(targetUid),
+    {
+      uid: targetUid,
+      email: targetEmail,
+      banned,
+      canUseApp,
+      bannedReason: banned ? bannedReason : '',
+      bannedAt: banned ? serverTimestamp() : null,
+      bannedByUid: banned ? String(adminUser?.uid || '') : '',
+      bannedByEmail: banned ? String(adminUser?.email || '').trim().toLowerCase() : '',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function deleteUserDataByAdmin(adminUser, targetUser) {
+  const targetUid = String(targetUser?.uid || '')
+  const targetEmail = String(targetUser?.email || '').trim().toLowerCase()
+
+  if (!targetUid) {
+    throw new Error('missing-target')
+  }
+
+  const entriesSnapshot = await getDocs(collection(db, 'users', targetUid, 'entries'))
+  for (const item of entriesSnapshot.docs) {
+    await deleteDoc(item.ref)
+  }
+
+  const notificationsSnapshot = await getDocs(collection(db, 'users', targetUid, 'notifications'))
+  for (const item of notificationsSnapshot.docs) {
+    await deleteDoc(item.ref)
+  }
+
+  await deleteDoc(doc(db, 'statuses', targetUid)).catch(() => {})
+
+  await setDoc(
+    userControlRef(targetUid),
+    {
+      uid: targetUid,
+      email: targetEmail,
+      banned: true,
+      canUseApp: false,
+      bannedReason: 'Account removed by admin',
+      bannedAt: serverTimestamp(),
+      bannedByUid: String(adminUser?.uid || ''),
+      bannedByEmail: String(adminUser?.email || '').trim().toLowerCase(),
+      deletedByAdmin: true,
+      deletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
 }
 
 export function subscribeStatusMap(callback, onError) {

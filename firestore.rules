@@ -5,25 +5,37 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Allowed couple emails.
-    function isAllowedEmail() {
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
       return request.auth.token.email in [
-        "usvault.one@usvault.app",
-        "usvault.two@usvault.app"
+        "gekansh2008@gmail.com"
       ];
     }
 
     match /users/{userId}/entries/{entryId} {
-      allow read, write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     match /users/{userId}/notifications/{notificationId} {
-      allow read, write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     match /statuses/{userId} {
-      allow read: if signedIn() && isAllowedEmail();
-      allow write: if signedIn() && isAllowedEmail() && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /user_controls/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.banned == false &&
+        request.resource.data.canUseApp == true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

@@ -6,9 +6,15 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { isAdminEmail } from '../config/adminAccess'
 import { isAllowedEmail, strictModeEnabled } from '../config/accessControl'
 import { auth } from '../firebase/config'
-import { saveUserProfile } from '../services/journalService'
+import {
+  ensureUserAccessControl,
+  getBlockedMessage,
+  isUserBlocked,
+  saveUserProfile,
+} from '../services/journalService'
 
 const AuthContext = createContext(null)
 
@@ -16,15 +22,41 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
+  const [userAccessControl, setUserAccessControl] = useState(null)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser && !isAllowedEmail(firebaseUser.email)) {
         setAuthError('This account is not part of your 2-user UsVault list.')
+        setUserAccessControl(null)
         setUser(null)
         setLoading(false)
         await signOut(auth)
         return
+      }
+
+      if (firebaseUser) {
+        try {
+          const accessControl = await ensureUserAccessControl(firebaseUser.uid, firebaseUser.email)
+          setUserAccessControl(accessControl)
+
+          if (isUserBlocked(accessControl)) {
+            setAuthError(getBlockedMessage(accessControl))
+            setUser(null)
+            setLoading(false)
+            await signOut(auth)
+            return
+          }
+        } catch {
+          setAuthError('Unable to verify access right now. Please try again.')
+          setUserAccessControl(null)
+          setUser(null)
+          setLoading(false)
+          await signOut(auth).catch(() => {})
+          return
+        }
+      } else {
+        setUserAccessControl(null)
       }
 
       setUser(firebaseUser)
@@ -87,6 +119,7 @@ export function AuthProvider({ children }) {
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
+      await ensureUserAccessControl(userCredential.user.uid, normalizedEmail)
       const profileResult = await saveUserProfile(userCredential.user.uid, normalizedEmail, {
         displayName: trimmedName,
         partnerName: 'Love',
@@ -109,18 +142,22 @@ export function AuthProvider({ children }) {
     await signOut(auth)
   }
 
+  const isAdmin = isAdminEmail(user?.email)
+
   const value = useMemo(
     () => ({
       user,
       loading,
       authError,
       strictModeEnabled,
+      userAccessControl,
+      isAdmin,
       login,
       register,
       registerWithProfile,
       logout,
     }),
-    [authError, loading, user],
+    [authError, isAdmin, loading, user, userAccessControl],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

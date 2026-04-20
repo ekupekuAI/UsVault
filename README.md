@@ -50,8 +50,9 @@ npm install
 ```
 
 2. Copy `.env.example` to `.env` and fill Firebase credentials.
-3. Set `VITE_ALLOWED_USERS` with exactly 2 emails.
-4. Start:
+3. Keep `VITE_STRICT_COUPLE_MODE=false` for open multi-user signup.
+4. Set `VITE_ADMIN_EMAILS` with your admin email(s).
+5. Start:
 
 ```bash
 npm run dev
@@ -81,9 +82,11 @@ npm run dev
 - Firestore: journal text + mood + status metadata
 - Firebase Storage: daily images
 
-6. Authentication
+6. Authentication and moderation
 - Email/password login and signup
-- 2-user gate using `VITE_ALLOWED_USERS` + Firebase rules
+- Optional strict allowlist mode via `VITE_STRICT_COUPLE_MODE`
+- Admin dashboard for user moderation (ban/disable/delete app data)
+- User access enforcement via `user_controls` collection
 
 7. PWA
 - Install prompt
@@ -93,4 +96,4 @@ npm run dev
 
 ## Firebase rules
 
-Use the included `firestore.rules` and `storage.rules`, replacing placeholder emails with your two real account emails before deploying rules.
+Use the included `firestore.rules` and `storage.rules`, replacing admin emails with your real admin account(s) before deploying rules.

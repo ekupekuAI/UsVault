@@ -7,7 +7,9 @@ import { FIRST_OPEN_SPLASH_KEY, POST_SIGNUP_INTRO_KEY } from './constants/authFl
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SoundProvider } from './context/SoundContext'
 import AuthPage from './pages/AuthPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import DashboardPage from './pages/DashboardPage'
+import LandingPage from './pages/LandingPage'
 import MemoryJournalPage from './pages/MemoryJournalPage'
 import MoodTrackerPage from './pages/MoodTrackerPage'
 import NotificationCenterPage from './pages/NotificationCenterPage'
@@ -43,10 +45,12 @@ const BASE_TABS = [
   { id: 'profile', label: 'Profile', icon: '\u{1F464}' },
   { id: 'vibes', label: 'Vibes', icon: '\u{1F3B2}' },
 ]
+const ADMIN_TAB = { id: 'admin', label: 'Admin', icon: '\u{1F6E1}' }
 
 function AppContent() {
-  const { user, loading, authError } = useAuth()
+  const { user, loading, authError, isAdmin } = useAuth()
   const [bootSplashDone, setBootSplashDone] = useState(false)
+  const [showAuthScreen, setShowAuthScreen] = useState(false)
   const [showEntrySplash, setShowEntrySplash] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -167,6 +171,18 @@ function AppContent() {
       unsubscribeNotifications()
     }
   }, [todayKey, user])
+
+  useEffect(() => {
+    if (!user) {
+      setShowAuthScreen(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'admin') {
+      setActiveTab('dashboard')
+    }
+  }, [activeTab, isAdmin])
 
   useEffect(() => {
     if (!user) {
@@ -296,12 +312,14 @@ function AppContent() {
     [notifications],
   )
   const tabs = useMemo(
-    () =>
-      BASE_TABS.map((tab) => ({
+    () => {
+      const baseTabs = BASE_TABS.map((tab) => ({
         ...tab,
         badge: tab.id === 'notifications' ? unreadNotificationCount : 0,
-      })),
-    [unreadNotificationCount],
+      }))
+      return isAdmin ? [...baseTabs, ADMIN_TAB] : baseTabs
+    },
+    [isAdmin, unreadNotificationCount],
   )
 
   async function handleMarkAllNotificationsRead() {
@@ -312,16 +330,24 @@ function AppContent() {
     await deleteUserNotification(user.uid, notificationId)
   }
 
-  if (showEntrySplash) {
+  if (showEntrySplash && user) {
     return <SplashScreen visible mode="entry" />
+  }
+
+  if (!user && !loading) {
+    if (!showAuthScreen) {
+      return <LandingPage onGetStarted={() => setShowAuthScreen(true)} />
+    }
+    return (
+      <AuthPage
+        authError={authError}
+        onBackToLanding={() => setShowAuthScreen(false)}
+      />
+    )
   }
 
   if (!bootSplashDone || loading) {
     return <SplashScreen visible mode="logoIntro" />
-  }
-
-  if (!user) {
-    return <AuthPage authError={authError} />
   }
 
   if (showPostSignupIntro) {
@@ -411,6 +437,7 @@ function AppContent() {
           />
         )}
         {activeTab === 'vibes' && <VibesPage user={user} myProfile={myProfile} todayEntry={todayEntry} />}
+        {activeTab === 'admin' && isAdmin && <AdminDashboardPage adminUser={user} />}
       </AppShell>
     </main>
   )

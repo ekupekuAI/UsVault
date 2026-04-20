@@ -5,7 +5,7 @@ import { allowedUsers } from '../config/accessControl'
 import { POST_SIGNUP_INTRO_KEY } from '../constants/authFlow'
 import { useAuth } from '../context/AuthContext'
 
-function AuthPage({ authError }) {
+function AuthPage({ authError, onBackToLanding }) {
   const { login, registerWithProfile, strictModeEnabled } = useAuth()
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
@@ -16,6 +16,7 @@ function AuthPage({ authError }) {
   const [signupStep, setSignupStep] = useState('form')
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState('')
+  const [activeView, setActiveView] = useState('auth')
 
   useEffect(() => {
     if (!profilePhoto) {
@@ -29,7 +30,7 @@ function AuthPage({ authError }) {
 
   useEffect(() => {
     setLocalError('')
-  }, [mode, signupStep])
+  }, [mode, signupStep, activeView])
 
   function switchMode(nextMode) {
     setMode(nextMode)
@@ -95,6 +96,48 @@ function AuthPage({ authError }) {
   }
 
   const resolvedError = localError || authError
+
+  if (activeView === 'about') {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 app-surface">
+        <section className="card-soft w-full rounded-[30px] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">About UsVault</p>
+          <h1 className="mt-2 text-2xl font-bold text-[var(--ink-title)]">Production App Overview</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            UsVault is a couple-first production web app for secure daily memories, mood tracking, partner status, and private notifications.
+          </p>
+
+          <div className="mt-4 space-y-3 rounded-2xl border border-violet-100 bg-white/70 p-4 text-sm text-slate-600">
+            <p>
+              It is built with React and Vite for a smooth frontend experience, and Firebase powers authentication, realtime Firestore sync, media storage, and push notifications.
+            </p>
+            <p>
+              The app is designed for two linked users only, supports responsive mobile-first usage, and can be installed as a PWA for home-screen access.
+            </p>
+            <p>
+              The product direction focuses on reliability, privacy, lightweight performance, and a glass-style interface that keeps daily interactions calm and fast.
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveView('auth')}
+              className="pressable rounded-2xl border border-violet-200 bg-white/75 px-3 py-2.5 text-sm font-semibold text-violet-700"
+            >
+              Back to Login
+            </button>
+            <a
+              href="mailto:gekansh2008@gmail.com?subject=UsVault%20Support"
+              className="pressable flex items-center justify-center rounded-2xl border border-violet-200 bg-white/75 px-3 py-2.5 text-sm font-semibold text-violet-700"
+            >
+              Contact Developer
+            </a>
+          </div>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 app-surface">
@@ -220,6 +263,31 @@ function AuthPage({ authError }) {
             </div>
           </div>
         )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveView('about')}
+            className="pressable rounded-lg border border-violet-200 bg-white/70 px-2.5 py-1 font-semibold text-violet-700"
+          >
+            About UsVault
+          </button>
+          <a
+            href="mailto:gekansh2008@gmail.com?subject=UsVault%20Support"
+            className="pressable rounded-lg border border-violet-200 bg-white/70 px-2.5 py-1 font-semibold text-violet-700"
+          >
+            Contact Developer
+          </a>
+          {onBackToLanding && (
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="pressable rounded-lg border border-violet-200 bg-white/70 px-2.5 py-1 font-semibold text-violet-700"
+            >
+              Back to Landing
+            </button>
+          )}
+        </div>
       </div>
     </main>
   )
