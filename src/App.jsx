@@ -41,16 +41,43 @@ const FloatingRomanceDecor = lazy(() => import('./components/FloatingRomanceDeco
 const PUSH_TOKEN_UID_KEY = 'usvault_push_token_uid'
 const PUSH_TOKEN_VALUE_KEY = 'usvault_push_token_value'
 
+const THEME_BY_STATUS = {
+  Free: {
+    primary: '#2fa36a',
+    secondary: '#6be09e',
+    glow: 'rgba(64, 173, 112, 0.28)',
+    bgA: 'rgba(155, 255, 205, 0.36)',
+    bgB: 'rgba(98, 229, 175, 0.24)',
+    bgC: '#cfeadf',
+  },
+  Busy: {
+    primary: '#3a67d7',
+    secondary: '#78a2ff',
+    glow: 'rgba(89, 129, 231, 0.3)',
+    bgA: 'rgba(146, 180, 255, 0.36)',
+    bgB: 'rgba(113, 157, 245, 0.25)',
+    bgC: '#d3dcf4',
+  },
+  'Someone Around': {
+    primary: '#d2416f',
+    secondary: '#ff7a9e',
+    glow: 'rgba(215, 86, 128, 0.33)',
+    bgA: 'rgba(255, 170, 200, 0.36)',
+    bgB: 'rgba(241, 121, 154, 0.26)',
+    bgC: '#edd1df',
+  },
+}
+
 const BASE_TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '\u{1F3E0}' },
-  { id: 'journal', label: 'Journal', icon: '\u{1F4DD}' },
-  { id: 'mood', label: 'Mood', icon: '\u{1F60A}' },
-  { id: 'status', label: 'Status', icon: '\u{1F4F6}' },
-  { id: 'notifications', label: 'Alerts', icon: '\u{1F514}' },
-  { id: 'profile', label: 'Profile', icon: '\u{1F464}' },
-  { id: 'vibes', label: 'Vibes', icon: '\u{1F3B2}' },
+  { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+  { id: 'journal', label: 'Journal', icon: 'book' },
+  { id: 'mood', label: 'Mood', icon: 'smile' },
+  { id: 'status', label: 'Status', icon: 'activity' },
+  { id: 'notifications', label: 'Alerts', icon: 'bell' },
+  { id: 'profile', label: 'Profile', icon: 'user' },
+  { id: 'vibes', label: 'Vibes', icon: 'sparkles' },
 ]
-const ADMIN_TAB = { id: 'admin', label: 'Admin', icon: '\u{1F6E1}' }
+const ADMIN_TAB = { id: 'admin', label: 'Admin', icon: 'shield' }
 
 function normalizePublicPath(pathname = '/') {
   if (pathname === '/auth') {
@@ -402,6 +429,29 @@ function AppContent() {
     }
   }, [myProfile?.partnerUid, statusMap])
 
+  const effectiveThemeStatus = useMemo(() => {
+    const fallback = myStatus || 'Free'
+    if (!partnerStatusData.linked || partnerStatusData.status === 'No update yet') {
+      return fallback
+    }
+
+    const myUpdatedAtMs = myProfile?.updatedAt?.toDate ? myProfile.updatedAt.toDate().getTime() : 0
+    const partnerUpdatedAtMs = partnerStatusData.lastSeen?.toDate
+      ? partnerStatusData.lastSeen.toDate().getTime()
+      : 0
+
+    if (partnerUpdatedAtMs > myUpdatedAtMs) {
+      return partnerStatusData.status || fallback
+    }
+    return fallback
+  }, [
+    myProfile?.updatedAt,
+    myStatus,
+    partnerStatusData.lastSeen,
+    partnerStatusData.linked,
+    partnerStatusData.status,
+  ])
+
   const onThisDayEntry = useMemo(() => {
     const todayMonthDay = todayKey.slice(5)
     return (
@@ -425,6 +475,22 @@ function AppContent() {
     },
     [isAdmin, unreadNotificationCount],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const root = document.documentElement
+    const palette = THEME_BY_STATUS[effectiveThemeStatus] || THEME_BY_STATUS.Free
+
+    root.style.setProperty('--theme-primary', palette.primary)
+    root.style.setProperty('--theme-secondary', palette.secondary)
+    root.style.setProperty('--theme-glow', palette.glow)
+    root.style.setProperty('--theme-bg-a', palette.bgA)
+    root.style.setProperty('--theme-bg-b', palette.bgB)
+    root.style.setProperty('--theme-bg-c', palette.bgC)
+  }, [effectiveThemeStatus])
 
   async function handleMarkAllNotificationsRead() {
     await markAllNotificationsRead(user.uid)

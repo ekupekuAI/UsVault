@@ -1,8 +1,29 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Activity,
+  Bell,
+  Book,
+  Home,
+  Shield,
+  Smile,
+  Sparkles,
+  User,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSound } from '../context/SoundContext'
 import { hoverLift, softSpring, tapPress } from './motion/motionTokens'
 import PrimaryButton from './ui/PrimaryButton'
+
+const TAB_ICONS = {
+  home: Home,
+  book: Book,
+  smile: Smile,
+  activity: Activity,
+  bell: Bell,
+  user: User,
+  sparkles: Sparkles,
+  shield: Shield,
+}
 
 function AppShell({ tabs, activeTab, onTabChange, children }) {
   const MotionButton = motion.button
@@ -56,36 +77,46 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
           className="grid gap-1"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
-          {tabs.map((tab) => (
-            <li key={tab.id}>
-              <MotionButton
-                type="button"
-                onClick={() => onTabChange(tab.id)}
-                whileHover={hoverLift}
-                whileTap={tapPress}
-                transition={softSpring}
-                className={`flex min-h-[52px] w-full flex-col items-center rounded-2xl px-2 py-2 text-[11px] font-semibold transition-colors duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-br from-violet-100/95 to-rose-100/95 text-violet-700 shadow-[0_8px_18px_rgba(162,128,244,0.26)]'
-                    : 'text-slate-500 hover:bg-violet-50/70'
-                }`}
-              >
-                <span
-                  className={`nav-icon-orb relative mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-sm ${
-                    activeTab === tab.id ? 'nav-icon-orb-active' : ''
+          {tabs.map((tab) => {
+            const Icon = TAB_ICONS[tab.icon] || Home
+            const isActive = activeTab === tab.id
+
+            return (
+              <li key={tab.id}>
+                <MotionButton
+                  type="button"
+                  onClick={() => onTabChange(tab.id)}
+                  whileHover={hoverLift}
+                  whileTap={tapPress}
+                  transition={softSpring}
+                  className={`flex min-h-[52px] w-full flex-col items-center rounded-2xl px-2 py-2 text-[11px] font-semibold transition-colors duration-200 ${
+                    isActive
+                      ? 'bg-gradient-to-br from-violet-100/95 to-rose-100/95 text-violet-700 shadow-[0_8px_18px_rgba(162,128,244,0.26)]'
+                      : 'text-slate-500 hover:bg-violet-50/70'
                   }`}
                 >
-                  {tab.icon}
-                  {tab.badge > 0 && (
-                    <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
-                      {tab.badge > 9 ? '9+' : tab.badge}
-                    </span>
-                  )}
-                </span>
-                {tab.label}
-              </MotionButton>
-            </li>
-          ))}
+                  <span
+                    className={`nav-icon-orb relative mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-sm ${
+                      isActive ? 'nav-icon-orb-active' : ''
+                    }`}
+                  >
+                    <Icon
+                      className={`h-5 w-5 transition duration-200 ${
+                        isActive ? 'scale-110 text-violet-700' : 'scale-100 text-slate-500'
+                      }`}
+                      strokeWidth={2.1}
+                    />
+                    {tab.badge > 0 && (
+                      <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
+                        {tab.badge > 9 ? '9+' : tab.badge}
+                      </span>
+                    )}
+                  </span>
+                  {tab.label}
+                </MotionButton>
+              </li>
+            )
+          })}
         </ul>
       </nav>
     </div>
