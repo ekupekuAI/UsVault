@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import SoftCard from '../components/ui/SoftCard'
+import SoftModal from '../components/ui/SoftModal'
 
 function formatNotificationTime(value) {
   if (!value) {
@@ -33,9 +34,12 @@ function NotificationCenterPage({
   unreadCount,
   onMarkAllRead,
   onDeleteNotification,
+  onDeleteAllNotifications,
 }) {
   const [busyRead, setBusyRead] = useState(false)
   const [busyDeleteId, setBusyDeleteId] = useState('')
+  const [busyDeleteAll, setBusyDeleteAll] = useState(false)
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
   const [actionError, setActionError] = useState('')
 
   const titleText = useMemo(
@@ -67,6 +71,19 @@ function NotificationCenterPage({
     }
   }
 
+  async function handleDeleteAll() {
+    setBusyDeleteAll(true)
+    setActionError('')
+    try {
+      await onDeleteAllNotifications()
+      setConfirmDeleteAll(false)
+    } catch {
+      setActionError('Could not clear all notifications.')
+    } finally {
+      setBusyDeleteAll(false)
+    }
+  }
+
   return (
     <section className="space-y-3">
       <SoftCard title="Notification Center" subtitle={titleText}>
@@ -78,6 +95,14 @@ function NotificationCenterPage({
             className="pressable rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 disabled:opacity-50"
           >
             {busyRead ? 'Updating...' : 'Mark all read'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteAll(true)}
+            disabled={busyDeleteAll || notifications.length === 0}
+            className="pressable rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50"
+          >
+            {busyDeleteAll ? 'Clearing...' : 'Delete all'}
           </button>
         </div>
         {actionError && <p className="mt-2 text-xs font-semibold text-rose-700">{actionError}</p>}
@@ -121,6 +146,38 @@ function NotificationCenterPage({
           </ul>
         )}
       </SoftCard>
+
+      <SoftModal
+        open={confirmDeleteAll}
+        onClose={() => {
+          if (!busyDeleteAll) {
+            setConfirmDeleteAll(false)
+          }
+        }}
+        title="Delete all notifications"
+      >
+        <p className="text-sm text-slate-600">
+          This will remove all notifications from your dashboard feed.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteAll(false)}
+            disabled={busyDeleteAll}
+            className="pressable flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteAll}
+            disabled={busyDeleteAll}
+            className="pressable flex-1 rounded-xl border border-rose-200 bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-60"
+          >
+            {busyDeleteAll ? 'Deleting...' : 'Delete all'}
+          </button>
+        </div>
+      </SoftModal>
     </section>
   )
 }

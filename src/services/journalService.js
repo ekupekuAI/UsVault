@@ -588,6 +588,33 @@ export async function deleteUserNotification(uid, notificationId) {
   await deleteDoc(doc(db, 'users', uid, 'notifications', notificationId))
 }
 
+export async function deleteAllUserNotifications(uid) {
+  const normalizedUid = toSafeString(uid)
+  if (!normalizedUid) {
+    return
+  }
+
+  const maxBatchSize = 400
+
+  while (true) {
+    const listQuery = query(notificationsCollection(normalizedUid), limit(maxBatchSize))
+    const snapshot = await getDocs(listQuery)
+    if (snapshot.empty) {
+      break
+    }
+
+    const batch = writeBatch(db)
+    snapshot.docs.forEach((item) => {
+      batch.delete(item.ref)
+    })
+    await batch.commit()
+
+    if (snapshot.size < maxBatchSize) {
+      break
+    }
+  }
+}
+
 export async function saveUserProfile(uid, email, profilePayload = {}) {
   const statusRef = doc(db, 'statuses', uid)
   const displayName = String(profilePayload.displayName || '').trim()

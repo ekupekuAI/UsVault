@@ -17,6 +17,7 @@ import ProfilePage from './pages/ProfilePage'
 import StatusPage from './pages/StatusPage'
 import VibesPage from './pages/VibesPage'
 import {
+  deleteAllUserNotifications,
   deleteUserNotification,
   ensureStatusDocument,
   formatDateKey,
@@ -124,8 +125,12 @@ function AppContent() {
   const [dataError, setDataError] = useState('')
   const [surpriseMessage, setSurpriseMessage] = useState('')
   const [surpriseVisible, setSurpriseVisible] = useState(false)
+  const [partnerTodayEntry, setPartnerTodayEntry] = useState(null)
+  const [partnerMoodFx, setPartnerMoodFx] = useState(null)
   const notificationsPrimedRef = useRef(false)
   const knownNotificationIdsRef = useRef(new Set())
+  const partnerMoodInitializedRef = useRef(false)
+  const partnerMoodPreviousRef = useRef('')
 
   const todayKey = formatDateKey(new Date())
 
@@ -366,6 +371,14 @@ function AppContent() {
   }, [surpriseVisible])
 
   useEffect(() => {
+    if (!partnerMoodFx) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setPartnerMoodFx(null), 1600)
+    return () => window.clearTimeout(timerId)
+  }, [partnerMoodFx])
+
+  useEffect(() => {
     if (!user) {
       return
     }
@@ -418,6 +431,7 @@ function AppContent() {
   }
 
   const myStatus = myProfile.status || 'Free'
+  const myPartnerUid = myProfile?.partnerUid || ''
   const partnerStatusData = useMemo(() => {
     const partner = myProfile?.partnerUid ? statusMap[myProfile.partnerUid] : null
     return {
@@ -436,6 +450,43 @@ function AppContent() {
       lastSeen: partner?.updatedAt || null,
     }
   }, [myProfile?.partnerUid, statusMap])
+
+  useEffect(() => {
+    if (!user || !myPartnerUid) {
+      setPartnerTodayEntry(null)
+      partnerMoodInitializedRef.current = false
+      partnerMoodPreviousRef.current = ''
+      return undefined
+    }
+
+    partnerMoodInitializedRef.current = false
+    partnerMoodPreviousRef.current = ''
+
+    return subscribeEntryByDate(
+      myPartnerUid,
+      todayKey,
+      (entry) => {
+        setPartnerTodayEntry(entry)
+        const nextMood = String(entry?.mood || '')
+
+        if (!partnerMoodInitializedRef.current) {
+          partnerMoodInitializedRef.current = true
+          partnerMoodPreviousRef.current = nextMood
+          return
+        }
+
+        if (nextMood && nextMood !== partnerMoodPreviousRef.current) {
+          setPartnerMoodFx({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            mood: nextMood,
+          })
+        }
+
+        partnerMoodPreviousRef.current = nextMood
+      },
+      () => {},
+    )
+  }, [myPartnerUid, todayKey, user])
 
   const effectiveThemeStatus = useMemo(() => {
     if (!partnerStatusData.linked || partnerStatusData.status === 'No update yet') {
@@ -490,6 +541,10 @@ function AppContent() {
 
   async function handleDeleteNotification(notificationId) {
     await deleteUserNotification(user.uid, notificationId)
+  }
+
+  async function handleDeleteAllNotifications() {
+    await deleteAllUserNotifications(user.uid)
   }
 
   function navigatePublic(nextPath) {
@@ -562,6 +617,8 @@ function AppContent() {
           <DashboardPage
             user={user}
             todayEntry={todayEntry}
+            partnerTodayEntry={partnerTodayEntry}
+            partnerMoodFx={partnerMoodFx}
             entries={entries}
             todayLoading={todayLoading}
             statusLoading={statusLoading}
@@ -602,6 +659,7 @@ function AppContent() {
             unreadCount={unreadNotificationCount}
             onMarkAllRead={handleMarkAllNotificationsRead}
             onDeleteNotification={handleDeleteNotification}
+            onDeleteAllNotifications={handleDeleteAllNotifications}
           />
         )}
         {activeTab === 'profile' && (

@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import SmartImage from '../components/SmartImage'
 import StatusBadge from '../components/StatusBadge'
@@ -17,6 +18,8 @@ import {
 function DashboardPage({
   user,
   todayEntry,
+  partnerTodayEntry,
+  partnerMoodFx,
   entries,
   onThisDayEntry,
   myStatus,
@@ -28,6 +31,8 @@ function DashboardPage({
   myProfile,
   partnerProfile,
 }) {
+  const MotionSpan = motion.span
+  const MotionP = motion.p
   const { playSuccess } = useSound()
   const [showPersonalization, setShowPersonalization] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
@@ -82,6 +87,13 @@ function DashboardPage({
     }
     return [...partnerProfile.gossipEntries].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0]
   }, [partnerProfile?.gossipEntries])
+  const moodBurstGlyph = useMemo(() => {
+    const value = String(partnerMoodFx?.mood || '')
+    return value || '\u2728'
+  }, [partnerMoodFx?.mood])
+  const partnerMoodLabel = partnerTodayEntry?.mood
+    ? `Latest mood: ${partnerTodayEntry.mood}`
+    : 'Latest mood: Not updated yet'
 
   const missMeCandidates = useMemo(() => {
     const memoryCandidates = entries.filter((entry) => entry?.date && entry.date !== todayEntry?.date)
@@ -126,7 +138,53 @@ function DashboardPage({
   }
 
   return (
-    <section className="space-y-3">
+    <section className="relative space-y-3 overflow-hidden">
+      <AnimatePresence>
+        {partnerMoodFx?.id && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-20 h-28">
+            <MotionP
+              initial={{ opacity: 0, y: -6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
+              className="mx-auto w-max rounded-full border border-violet-200/80 bg-white/80 px-3 py-1 text-[11px] font-semibold text-violet-700 backdrop-blur-sm"
+            >
+              {partnerLabel} updated mood
+            </MotionP>
+            <MotionSpan
+              key={`${partnerMoodFx.id}-a`}
+              initial={{ opacity: 0, y: -8, x: -26, scale: 0.8, rotate: -8 }}
+              animate={{ opacity: [0, 1, 0], y: [-8, 78], x: [-26, -44], scale: [0.8, 1.06, 0.88], rotate: [-8, 6] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.95, delay: 0.02, ease: 'easeOut' }}
+              className="absolute left-1/2 top-8 -translate-x-1/2 text-xl"
+            >
+              {moodBurstGlyph}
+            </MotionSpan>
+            <MotionSpan
+              key={`${partnerMoodFx.id}-b`}
+              initial={{ opacity: 0, y: -12, x: 0, scale: 0.86, rotate: 0 }}
+              animate={{ opacity: [0, 1, 0], y: [-12, 84], x: [0, 2], scale: [0.86, 1.1, 0.9], rotate: [0, 4] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.02, delay: 0.08, ease: 'easeOut' }}
+              className="absolute left-1/2 top-7 -translate-x-1/2 text-2xl"
+            >
+              {moodBurstGlyph}
+            </MotionSpan>
+            <MotionSpan
+              key={`${partnerMoodFx.id}-c`}
+              initial={{ opacity: 0, y: -10, x: 24, scale: 0.82, rotate: 10 }}
+              animate={{ opacity: [0, 1, 0], y: [-10, 80], x: [24, 40], scale: [0.82, 1.03, 0.88], rotate: [10, -7] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.98, delay: 0.14, ease: 'easeOut' }}
+              className="absolute left-1/2 top-8 -translate-x-1/2 text-xl"
+            >
+              {moodBurstGlyph}
+            </MotionSpan>
+          </div>
+        )}
+      </AnimatePresence>
+
       {partnerLatestGossip && (
         <SoftCard title="Gossip Bar">
           <div className="rounded-2xl border border-fuchsia-200/90 bg-gradient-to-r from-rose-50/90 via-fuchsia-50/85 to-violet-50/90 px-3 py-3">
@@ -292,6 +350,7 @@ function DashboardPage({
                 <StatusBadge status={partnerStatus} />
               </div>
               <p className="mt-1 text-[11px] text-slate-500">{formatLastSeen(partnerLastSeen)}</p>
+              <p className="mt-1 text-[11px] font-semibold text-violet-600">{partnerMoodLabel}</p>
               <p className="mt-2 text-xs text-violet-700">{statusPrompt}</p>
             </div>
           </div>
