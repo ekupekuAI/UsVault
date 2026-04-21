@@ -47,10 +47,22 @@ const BASE_TABS = [
 ]
 const ADMIN_TAB = { id: 'admin', label: 'Admin', icon: '\u{1F6E1}' }
 
+function normalizePublicPath(pathname = '/') {
+  if (pathname === '/auth') {
+    return '/auth'
+  }
+  return '/'
+}
+
 function AppContent() {
   const { user, loading, authError, isAdmin } = useAuth()
   const [bootSplashDone, setBootSplashDone] = useState(false)
-  const [showAuthScreen, setShowAuthScreen] = useState(false)
+  const [publicPath, setPublicPath] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '/'
+    }
+    return normalizePublicPath(window.location.pathname)
+  })
   const [showEntrySplash, setShowEntrySplash] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -173,10 +185,13 @@ function AppContent() {
   }, [todayKey, user])
 
   useEffect(() => {
-    if (!user) {
-      setShowAuthScreen(false)
+    function handlePopState() {
+      setPublicPath(normalizePublicPath(window.location.pathname))
     }
-  }, [user])
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   useEffect(() => {
     if (!isAdmin && activeTab === 'admin') {
@@ -330,20 +345,33 @@ function AppContent() {
     await deleteUserNotification(user.uid, notificationId)
   }
 
+  function navigatePublic(nextPath) {
+    const normalized = normalizePublicPath(nextPath)
+    if (typeof window === 'undefined') {
+      setPublicPath(normalized)
+      return
+    }
+
+    if (window.location.pathname !== normalized) {
+      window.history.pushState({}, '', normalized)
+    }
+    setPublicPath(normalized)
+  }
+
   if (showEntrySplash && user) {
     return <SplashScreen visible mode="entry" />
   }
 
   if (!user && !loading) {
-    if (!showAuthScreen) {
-      return <LandingPage onGetStarted={() => setShowAuthScreen(true)} />
+    if (publicPath === '/auth') {
+      return (
+        <AuthPage
+          authError={authError}
+          onBackToLanding={() => navigatePublic('/')}
+        />
+      )
     }
-    return (
-      <AuthPage
-        authError={authError}
-        onBackToLanding={() => setShowAuthScreen(false)}
-      />
-    )
+    return <LandingPage onGetStarted={() => navigatePublic('/auth')} />
   }
 
   if (!bootSplashDone || loading) {
