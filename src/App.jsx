@@ -67,6 +67,14 @@ const THEME_BY_STATUS = {
     bgC: '#edd1df',
   },
 }
+const DEFAULT_THEME = {
+  primary: '#7b58df',
+  secondary: '#b18dff',
+  glow: 'rgba(137, 102, 220, 0.3)',
+  bgA: 'rgba(210, 166, 238, 0.36)',
+  bgB: 'rgba(170, 183, 236, 0.28)',
+  bgC: '#d7cfe8',
+}
 
 const BASE_TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'home' },
@@ -430,27 +438,11 @@ function AppContent() {
   }, [myProfile?.partnerUid, statusMap])
 
   const effectiveThemeStatus = useMemo(() => {
-    const fallback = myStatus || 'Free'
     if (!partnerStatusData.linked || partnerStatusData.status === 'No update yet') {
-      return fallback
+      return ''
     }
-
-    const myUpdatedAtMs = myProfile?.updatedAt?.toDate ? myProfile.updatedAt.toDate().getTime() : 0
-    const partnerUpdatedAtMs = partnerStatusData.lastSeen?.toDate
-      ? partnerStatusData.lastSeen.toDate().getTime()
-      : 0
-
-    if (partnerUpdatedAtMs > myUpdatedAtMs) {
-      return partnerStatusData.status || fallback
-    }
-    return fallback
-  }, [
-    myProfile?.updatedAt,
-    myStatus,
-    partnerStatusData.lastSeen,
-    partnerStatusData.linked,
-    partnerStatusData.status,
-  ])
+    return partnerStatusData.status || ''
+  }, [partnerStatusData.linked, partnerStatusData.status])
 
   const onThisDayEntry = useMemo(() => {
     const todayMonthDay = todayKey.slice(5)
@@ -482,7 +474,7 @@ function AppContent() {
     }
 
     const root = document.documentElement
-    const palette = THEME_BY_STATUS[effectiveThemeStatus] || THEME_BY_STATUS.Free
+    const palette = THEME_BY_STATUS[effectiveThemeStatus] || DEFAULT_THEME
 
     root.style.setProperty('--theme-primary', palette.primary)
     root.style.setProperty('--theme-secondary', palette.secondary)
