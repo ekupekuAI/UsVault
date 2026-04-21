@@ -19,9 +19,9 @@ function FeedbackToast({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           transition={{ duration: 0.22 }}
-          className="pointer-events-none fixed bottom-20 left-1/2 z-[80] w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2"
+          className="pointer-events-none fixed bottom-24 left-1/2 z-[80] w-[calc(100%-1.2rem)] max-w-sm -translate-x-1/2"
         >
-          <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-2xl border border-violet-200/70 bg-slate-900/85 px-3 py-2 text-xs text-white shadow-[0_16px_30px_rgba(41,28,70,0.38)] backdrop-blur-xl">
+          <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-[16px] border border-white/60 bg-slate-900/74 px-3 py-2 text-xs text-white shadow-[0_16px_30px_rgba(22,37,69,0.34)] backdrop-blur-xl">
             <p className="font-semibold">{message}</p>
             <div className="flex items-center gap-2">
               {actionLabel && onAction && (

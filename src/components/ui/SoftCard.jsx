@@ -11,12 +11,12 @@ function SoftCard({ title, subtitle, className = '', children }) {
       variants={cardEnter}
       transition={{ ...softSpring, duration: 0.42 }}
       whileHover={hoverLift}
-      className={`card-soft rounded-3xl p-3 sm:p-4 ${className}`}
+      className={`card-soft rounded-[26px] p-3.5 sm:p-4 ${className}`}
     >
       {title && (
         <header>
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-400">{title}</p>
-          {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-400">{title}</p>
+          {subtitle && <p className="mt-1 text-[13px] font-medium text-slate-500">{subtitle}</p>}
         </header>
       )}
       <div className={title ? 'mt-3' : ''}>{children}</div>

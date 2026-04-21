@@ -28,10 +28,10 @@ function PrimaryButton({ className = '', children, onClick, ...props }) {
       whileTap={tapPress}
       transition={quickSpring}
       style={{
-        backgroundImage: 'linear-gradient(90deg, var(--theme-primary), var(--theme-secondary), var(--theme-primary))',
-        boxShadow: '0 10px 22px var(--theme-glow)',
+        backgroundImage: 'linear-gradient(180deg, color-mix(in srgb, var(--theme-secondary) 38%, white), var(--theme-primary))',
+        boxShadow: '0 12px 24px color-mix(in srgb, var(--theme-primary) 38%, transparent)',
       }}
-      className={`premium-button relative min-h-[44px] overflow-hidden rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+      className={`premium-button relative min-h-[44px] overflow-hidden rounded-[14px] border border-white/55 px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
     >
       <span
         aria-hidden="true"
