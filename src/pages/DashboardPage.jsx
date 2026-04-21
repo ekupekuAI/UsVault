@@ -7,6 +7,7 @@ import SoftCard from '../components/ui/SoftCard'
 import SoftModal from '../components/ui/SoftModal'
 import { useSound } from '../context/SoundContext'
 import { updateUserPersonalization } from '../services/journalService'
+import { getHighlights } from '../utils/advancedLogic'
 import { formatLastSeen, formatReadableDate } from '../utils/date'
 import {
   formatGreetingForPartner,
@@ -87,6 +88,7 @@ function DashboardPage({
     }
     return [...partnerProfile.gossipEntries].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0]
   }, [partnerProfile?.gossipEntries])
+  const memoryHighlights = useMemo(() => getHighlights(entries), [entries])
   const moodBurstGlyph = useMemo(() => {
     const value = String(partnerMoodFx?.mood || '')
     return value || '\u2728'
@@ -99,6 +101,13 @@ function DashboardPage({
     const memoryCandidates = entries.filter((entry) => entry?.date && entry.date !== todayEntry?.date)
     const options = memoryCandidates.map((entry) => ({ type: 'memory', value: entry }))
 
+    if (memoryHighlights.longestEntry?.date && memoryHighlights.longestEntry.date !== todayEntry?.date) {
+      const alreadyIncluded = options.some((item) => item.value?.date === memoryHighlights.longestEntry.date)
+      if (!alreadyIncluded) {
+        options.unshift({ type: 'memory', value: memoryHighlights.longestEntry })
+      }
+    }
+
     if (partnerProfile?.missMeMessage) {
       options.push({ type: 'message', value: partnerProfile.missMeMessage })
     }
@@ -110,7 +119,13 @@ function DashboardPage({
     }
 
     return options
-  }, [entries, myProfile?.missMeMessage, partnerProfile?.missMeMessage, todayEntry?.date])
+  }, [
+    entries,
+    memoryHighlights.longestEntry,
+    myProfile?.missMeMessage,
+    partnerProfile?.missMeMessage,
+    todayEntry?.date,
+  ])
 
   function updateField(field, value) {
     setProfileForm((current) => ({ ...current, [field]: value }))
@@ -302,6 +317,9 @@ function DashboardPage({
             </p>
             <p className="mt-2 text-xs italic text-violet-600">{todayCaption}</p>
             {moodPrompt && <p className="mt-1 text-xs text-violet-700">{moodPrompt}</p>}
+            {todayEntry?.updatedAt && (
+              <p className="mt-1 text-[11px] text-slate-500">{formatLastSeen(todayEntry.updatedAt)}</p>
+            )}
 
             {todayEntry?.imageUrl && (
               <SmartImage

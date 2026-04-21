@@ -8,7 +8,7 @@ const SNOOZE_UNTIL_KEY = 'usvault_reminder_snooze_until'
 const DAILY_PUSH_SENT_KEY = 'usvault_daily_push_sent'
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 
-function DailyReminder({ user, onShowNow }) {
+function DailyReminder({ user, nudgeMessage = '', onShowNow }) {
   const [visible, setVisible] = useState(false)
   const [message, setMessage] = useState(pickDailyReminderMessage())
 
@@ -26,17 +26,17 @@ function DailyReminder({ user, onShowNow }) {
         localStorage.removeItem(SNOOZE_UNTIL_KEY)
       }
 
-      const dailyMessage = pickDailyReminderMessage()
+      const dailyMessage = nudgeMessage || pickDailyReminderMessage()
       setMessage(dailyMessage)
       setVisible(true)
 
       const todayStamp = new Date().toISOString().slice(0, 10)
       if (localStorage.getItem(DAILY_PUSH_SENT_KEY) !== todayStamp) {
-        sendLocalNotification('UsVault', 'Tell me about your day \u{1F4AD}')
+        sendLocalNotification('UsVault', dailyMessage)
         if (user?.uid) {
           saveInAppNotification(user.uid, {
             title: 'Daily Reminder',
-            body: 'Tell me about your day \u{1F4AD}',
+            body: dailyMessage,
             type: 'reminder',
           }).catch(() => {})
         }
@@ -47,7 +47,7 @@ function DailyReminder({ user, onShowNow }) {
     evaluateReminder()
     const timerId = window.setInterval(evaluateReminder, 60 * 1000)
     return () => window.clearInterval(timerId)
-  }, [user?.uid])
+  }, [nudgeMessage, user?.uid])
 
   function remindTomorrow() {
     localStorage.setItem(SNOOZE_UNTIL_KEY, String(Date.now() + DAY_IN_MS))

@@ -105,10 +105,17 @@ export function getBlockedMessage(accessControl = null) {
 }
 
 export async function saveDailyEntry(uid, dateKey, payload) {
+  const nextText = String(payload?.text || '')
+  const nextImage = String(payload?.image || payload?.imageUrl || '')
+
   await setDoc(
     entryRef(uid, dateKey),
     {
       ...payload,
+      id: String(payload?.id || dateKey),
+      text: nextText,
+      image: nextImage,
+      imageUrl: String(payload?.imageUrl || nextImage),
       date: dateKey,
       monthDay: dateKey.slice(5),
       updatedAt: serverTimestamp(),
@@ -168,7 +175,7 @@ export async function deleteDailyEntry(uid, dateKey, imagePath = '') {
 
 export async function updateUserMood(uid, mood) {
   const dateKey = formatDateKey(new Date())
-  await saveDailyEntry(uid, dateKey, { mood })
+  await saveDailyEntry(uid, dateKey, { mood, moodTimestamp: Date.now() })
 }
 
 export async function updateUserStatus(uid, email, status) {

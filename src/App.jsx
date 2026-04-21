@@ -35,6 +35,13 @@ import {
   startForegroundNotifications,
   stopForegroundNotifications,
 } from './services/pushService'
+import {
+  getLastActive,
+  getLockedCapsules,
+  getOnThisDay,
+  getSmartNudge,
+  getUnlockedCapsules,
+} from './utils/advancedLogic'
 import { pickRandomSurpriseMessage } from './utils/emotional'
 
 const DailyReminder = lazy(() => import('./components/DailyReminder'))
@@ -78,7 +85,7 @@ const DEFAULT_THEME = {
 }
 
 const BASE_TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+  { id: 'dashboard', label: 'Home', icon: 'home' },
   { id: 'journal', label: 'Journal', icon: 'book' },
   { id: 'mood', label: 'Mood', icon: 'smile' },
   { id: 'status', label: 'Status', icon: 'activity' },
@@ -496,13 +503,19 @@ function AppContent() {
   }, [partnerStatusData.linked, partnerStatusData.status])
 
   const onThisDayEntry = useMemo(() => {
-    const todayMonthDay = todayKey.slice(5)
-    return (
-      entries.find(
-        (entry) => entry?.date && entry.date < todayKey && entry.date.slice(5) === todayMonthDay,
-      ) || null
-    )
-  }, [entries, todayKey])
+    return getOnThisDay(entries)
+  }, [entries])
+
+  const smartNudge = useMemo(() => {
+    const lastMemory = entries?.[0] || todayEntry || null
+    const lastMood = entries.find((entry) => entry?.mood) || todayEntry || null
+    const lastActive = getLastActive()
+    return getSmartNudge({
+      lastMemory,
+      lastMood,
+      lastActive,
+    })
+  }, [entries, todayEntry])
 
   const unreadNotificationCount = useMemo(
     () => notifications.filter((item) => !item.read).length,
@@ -534,6 +547,14 @@ function AppContent() {
     root.style.setProperty('--theme-bg-b', palette.bgB)
     root.style.setProperty('--theme-bg-c', palette.bgC)
   }, [effectiveThemeStatus])
+
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+    getUnlockedCapsules()
+    getLockedCapsules()
+  }, [user])
 
   async function handleMarkAllNotificationsRead() {
     await markAllNotificationsRead(user.uid)
@@ -609,7 +630,11 @@ function AppContent() {
 
       <InstallPrompt />
       <Suspense fallback={null}>
-        <DailyReminder user={user} onShowNow={() => setActiveTab('journal')} />
+        <DailyReminder
+          user={user}
+          nudgeMessage={smartNudge}
+          onShowNow={() => setActiveTab('journal')}
+        />
       </Suspense>
 
       <AppShell tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>

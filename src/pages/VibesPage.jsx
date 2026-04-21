@@ -13,6 +13,12 @@ import {
   saveInAppNotification,
   updateUserGossipEntries,
 } from '../services/journalService'
+import {
+  clearLastDeleted,
+  deleteWithUndo,
+  restoreLastDeleted,
+  updateLastActive,
+} from '../utils/advancedLogic'
 
 const GOSSIP_TAGS = ['Fun \u2615', 'Spicy \u{1F525}', 'Secret \u{1F92B}']
 
@@ -68,7 +74,6 @@ function VibesPage({ user, myProfile, todayEntry }) {
 
   const [toast, setToast] = useState({ visible: false, message: '', actionLabel: '' })
   const [heartBurstVisible, setHeartBurstVisible] = useState(false)
-  const undoRef = useRef(null)
   const undoTimerRef = useRef(null)
 
   function showToast(message, actionLabel = '') {
@@ -124,6 +129,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
       if (undoTimerRef.current) {
         window.clearTimeout(undoTimerRef.current)
       }
+      clearLastDeleted()
     },
     [],
   )
@@ -132,21 +138,19 @@ function VibesPage({ user, myProfile, todayEntry }) {
     if (undoTimerRef.current) {
       window.clearTimeout(undoTimerRef.current)
     }
-    undoRef.current = payload
+    deleteWithUndo(payload)
     undoTimerRef.current = window.setTimeout(() => {
-      undoRef.current = null
+      clearLastDeleted()
       undoTimerRef.current = null
-    }, 5200)
+    }, 5000)
     showToast('Deleted', 'Undo')
   }
 
   async function handleUndo() {
-    if (!undoRef.current) {
+    const payload = restoreLastDeleted()
+    if (!payload) {
       return
     }
-
-    const payload = undoRef.current
-    undoRef.current = null
     if (undoTimerRef.current) {
       window.clearTimeout(undoTimerRef.current)
       undoTimerRef.current = null
@@ -197,7 +201,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     }
 
     const todayKey = formatDateKey(new Date())
-    const taggedLine = `From Dice \u{1F3B2} ${rolledIdea.text}`
+    const taggedLine = `Planned from a random idea \u{1F3B2}: ${rolledIdea.text}`
     const currentText = (todayEntry?.text || '').trim()
     const nextText = currentText.includes(taggedLine)
       ? currentText
@@ -209,7 +213,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     setDiceSaveMessage('')
     setDiceSaveError('')
     try {
-      await saveDailyEntry(user.uid, todayKey, { text: nextText, sourceTag: 'From Dice \u{1F3B2}' })
+      await saveDailyEntry(user.uid, todayKey, { text: nextText, sourceTag: 'Planned from a random idea \u{1F3B2}' })
       await saveInAppNotification(user.uid, {
         title: 'Date Dice Saved',
         body: 'A rolled date idea was saved as memory.',
@@ -222,6 +226,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
         type: 'memory',
         source: 'dice_memory_save',
       })
+      updateLastActive()
       setDiceSaveMessage('Saved to today\'s memory.')
       setHeartBurstVisible(true)
       showToast('Saved 💜')

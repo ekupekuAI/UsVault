@@ -16,6 +16,7 @@ import {
   saveInAppNotification,
   uploadEntryImage,
 } from '../services/journalService'
+import { clearLastDeleted, deleteWithUndo, restoreLastDeleted, updateLastActive } from '../utils/advancedLogic'
 import { formatReadableDate } from '../utils/date'
 
 function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingTitle, loadingCaption }) {
@@ -40,7 +41,6 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
   const [deleteError, setDeleteError] = useState('')
   const [hiddenDates, setHiddenDates] = useState([])
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState(null)
-  const pendingDeleteRef = useRef(null)
   const pendingDeleteTimerRef = useRef(null)
 
   const [toast, setToast] = useState({ visible: false, message: '', actionLabel: '' })
@@ -51,6 +51,19 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
   const todayKey = formatDateKey(new Date())
   const deferredEntries = useDeferredValue(entries)
   const visibleEntries = deferredEntries.filter((entry) => !hiddenDates.includes(entry.date))
+
+  function normalizeMemoryText(value) {
+    const collapsed = String(value || '')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+
+    if (!collapsed) {
+      return ''
+    }
+
+    return collapsed.charAt(0).toUpperCase() + collapsed.slice(1)
+  }
 
   function showToast(message, actionLabel = '') {
     setToast({ visible: true, message, actionLabel })
@@ -133,6 +146,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       if (pendingDeleteTimerRef.current) {
         window.clearTimeout(pendingDeleteTimerRef.current)
       }
+      clearLastDeleted()
     },
     [],
   )
@@ -163,10 +177,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         }
       }
 
-      await saveDailyEntry(user.uid, todayKey, {
-        text,
-        ...imagePayload,
-      })
+      await saveDailyEntry(user.uid, todayKey, { text: normalizeMemoryText(text), ...imagePayload })
       await saveInAppNotification(user.uid, {
         title: 'Memory Saved',
         body: 'Today\'s memory was added to your vault.',
@@ -182,10 +193,11 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
 
       startTransition(() => {
         setSelectedImage(null)
-        setSuccessText('Saved to your vault.')
+        setSuccessText('Saved. Updated just now.')
         setSaveGlow(true)
       })
 
+      updateLastActive()
       showToast('Saved 💜')
       setHeartBurstVisible(true)
       playSuccess()
@@ -228,10 +240,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         }
       }
 
-      await saveDailyEntry(user.uid, editingEntry.date, {
-        text: editText,
-        ...imagePayload,
-      })
+      await saveDailyEntry(user.uid, editingEntry.date, { text: normalizeMemoryText(editText), ...imagePayload })
       await saveInAppNotification(user.uid, {
         title: 'Memory Updated',
         body: `Updated memory for ${formatReadableDate(editingEntry.date)}.`,
@@ -246,7 +255,8 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       })
 
       setEditingEntry(null)
-      setSuccessText(`Memory updated for ${formatReadableDate(editingEntry.date)}.`)
+      setSuccessText(`Memory updated for ${formatReadableDate(editingEntry.date)}. Updated just now.`)
+      updateLastActive()
       showToast('Saved 💜')
       setHeartBurstVisible(true)
       playSuccess()
@@ -257,8 +267,8 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
     }
   }
 
-  async function finalizePendingDelete() {
-    const entry = pendingDeleteRef.current
+  async function finalizePendingDelete(forcedEntry = null) {
+    const entry = forcedEntry || pendingDeleteEntry
     if (!entry) {
       return
     }
@@ -273,14 +283,14 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         body: `Deleted memory from ${formatReadableDate(entry.date)}.`,
         type: 'memory',
       })
-      setSuccessText(`Deleted memory from ${formatReadableDate(entry.date)}.`)
+      setSuccessText(`Deleted memory from ${formatReadableDate(entry.date)}. Updated just now.`)
       showToast('Deleted')
     } catch {
       setDeleteError('Delete failed, try again.')
       setHiddenDates((current) => current.filter((date) => date !== entry.date))
     } finally {
       setDeletingDate('')
-      pendingDeleteRef.current = null
+      clearLastDeleted()
       setPendingDeleteEntry(null)
     }
   }
@@ -291,12 +301,12 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       pendingDeleteTimerRef.current = null
     }
 
-    const entry = pendingDeleteRef.current
-    if (entry) {
-      setHiddenDates((current) => current.filter((date) => date !== entry.date))
+    const restored = restoreLastDeleted()
+    const restoredEntry = restored?.entry || null
+    if (restoredEntry?.date) {
+      setHiddenDates((current) => current.filter((date) => date !== restoredEntry.date))
     }
 
-    pendingDeleteRef.current = null
     setPendingDeleteEntry(null)
     showToast('Undo complete')
   }
@@ -306,7 +316,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       return
     }
 
-    if (pendingDeleteRef.current) {
+    if (pendingDeleteEntry) {
       setDeleteError('Finish current pending delete (Undo or wait) first.')
       return
     }
@@ -316,13 +326,13 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
     setDeleteError('')
     setHiddenDates((current) => [...new Set([...current, entry.date])])
     setPendingDeleteEntry(entry)
-    pendingDeleteRef.current = entry
+    deleteWithUndo({ type: 'memory', entry })
     showToast('Deleted', 'Undo')
 
     pendingDeleteTimerRef.current = window.setTimeout(() => {
-      finalizePendingDelete()
+      finalizePendingDelete(entry)
       pendingDeleteTimerRef.current = null
-    }, 5200)
+    }, 5000)
   }
 
   return (

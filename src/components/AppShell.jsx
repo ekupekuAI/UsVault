@@ -45,12 +45,12 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
               whileHover={hoverLift}
               whileTap={tapPress}
               transition={softSpring}
-              className="rounded-full border border-violet-200 bg-white/75 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 backdrop-blur-sm sm:px-3 sm:text-xs"
+              className="inline-flex h-9 items-center justify-center rounded-full border border-violet-200 bg-white/75 px-3 text-xs font-semibold text-violet-700 backdrop-blur-sm"
               title="Toggle sound"
             >
               {soundEnabled ? 'Sound' : 'Muted'}
             </MotionButton>
-            <PrimaryButton type="button" onClick={logout} className="rounded-full px-2.5 py-1.5 text-[11px] sm:px-3 sm:text-xs">
+            <PrimaryButton type="button" onClick={logout} className="h-9 rounded-full px-3 py-0 text-xs">
               Logout
             </PrimaryButton>
           </div>
@@ -59,7 +59,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
         <p className="mt-1 text-[11px] font-medium text-slate-500/85">UsVault v1.0 💜 Built with love</p>
       </header>
 
-      <section className="mt-4 space-y-3 pb-20">
+      <section className="mt-4 space-y-3 pb-24">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -73,7 +73,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
         </AnimatePresence>
       </section>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto w-full max-w-md border-t border-violet-100/80 bg-white/84 px-2 py-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] backdrop-blur-2xl">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto w-full max-w-md border-t border-violet-100/80 bg-white/84 px-1.5 py-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] backdrop-blur-2xl">
         <ul
           className="grid gap-1"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
@@ -90,7 +90,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
                   whileHover={hoverLift}
                   whileTap={tapPress}
                   transition={softSpring}
-                  className={`flex min-h-[52px] w-full flex-col items-center rounded-2xl px-2 py-2 text-[11px] font-semibold transition-colors duration-200 ${
+                  className={`flex min-h-[52px] w-full flex-col items-center rounded-2xl px-1 py-1.5 text-[10px] font-semibold leading-tight transition-colors duration-200 ${
                     isActive
                       ? 'bg-gradient-to-br from-violet-100/95 to-rose-100/95 text-violet-700 shadow-[0_8px_18px_rgba(162,128,244,0.26)]'
                       : 'text-slate-500 hover:bg-violet-50/70'
@@ -113,7 +113,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
                       </span>
                     )}
                   </span>
-                  {tab.label}
+                  <span className="max-w-full truncate px-0.5">{tab.label}</span>
                 </MotionButton>
               </li>
             )

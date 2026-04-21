@@ -3,6 +3,7 @@ import FeedbackToast from '../components/ui/FeedbackToast'
 import { MOOD_OPTIONS } from '../constants/options'
 import { useSound } from '../context/SoundContext'
 import { notifyLinkedPartner, saveInAppNotification, updateUserMood } from '../services/journalService'
+import { getWeeklyMoodData, updateLastActive } from '../utils/advancedLogic'
 import SoftCard from '../components/ui/SoftCard'
 import { formatReadableDate } from '../utils/date'
 
@@ -40,6 +41,7 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
         type: 'mood',
         source: 'mood_update',
       })
+      updateLastActive()
       setToastVisible(true)
       playSuccess()
     } catch {
@@ -49,7 +51,10 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
     }
   }
 
-  const moodHistory = useMemo(() => entries.filter((entry) => entry.mood), [entries])
+  const moodHistory = useMemo(
+    () => getWeeklyMoodData(entries).filter((entry) => Boolean(entry.mood)),
+    [entries],
+  )
   const moodPrompt = todayEntry?.mood ? '' : 'How are you feeling today? Pick a mood 💜'
 
   return (

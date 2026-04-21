@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import { STATUS_OPTIONS } from '../constants/options'
 import { useSound } from '../context/SoundContext'
 import { notifyLinkedPartner, saveInAppNotification, updateUserStatus } from '../services/journalService'
+import { updateLastActive } from '../utils/advancedLogic'
 import SoftCard from '../components/ui/SoftCard'
 import { formatLastSeen } from '../utils/date'
 
@@ -47,6 +48,7 @@ function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
         type: 'status',
         source: 'status_update',
       })
+      updateLastActive()
       setToastVisible(true)
       playSuccess()
     } catch {

@@ -16,7 +16,12 @@ const SURPRISE_MESSAGES = ['You matter to me \u{1F49C}', 'This moment is ours']
 
 function normalizeName(rawName, fallback = 'Love') {
   const name = (rawName || '').trim()
-  return name || fallback
+  const source = name || fallback
+  return source
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function createDailySeed(date = new Date()) {
@@ -61,6 +66,12 @@ export function formatGreetingForPartner({ partnerProfile, myProfile }) {
   const template = (partnerProfile?.greetingTemplate || '').trim()
 
   if (!template) {
+    if (timePeriod === 'morning') {
+      return `Good morning, ${recipientName} \u{1F49C}`
+    }
+    if (timePeriod === 'evening') {
+      return 'Good evening... thinking of you \u{1F4AD}'
+    }
     return `${timeGreeting}, ${recipientName} \u{1F49C}`
   }
 
@@ -77,6 +88,12 @@ export function formatOutgoingGreetingPreview(profileDraft) {
   const template = (profileDraft?.greetingTemplate || '').trim()
 
   if (!template) {
+    if (timePeriod === 'morning') {
+      return `Good morning, ${fakePartnerName} \u{1F49C}`
+    }
+    if (timePeriod === 'evening') {
+      return 'Good evening... thinking of you \u{1F4AD}'
+    }
     return `${timeGreeting}, ${fakePartnerName} \u{1F49C}`
   }
 
