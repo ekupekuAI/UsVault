@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge'
 import PrimaryButton from '../components/ui/PrimaryButton'
 import SoftCard from '../components/ui/SoftCard'
 import SoftModal from '../components/ui/SoftModal'
+import { useSound } from '../context/SoundContext'
 import { updateUserPersonalization } from '../services/journalService'
 import { formatLastSeen, formatReadableDate } from '../utils/date'
 import {
@@ -27,6 +28,7 @@ function DashboardPage({
   myProfile,
   partnerProfile,
 }) {
+  const { playSuccess } = useSound()
   const [showPersonalization, setShowPersonalization] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileSaved, setProfileSaved] = useState('')
@@ -109,6 +111,7 @@ function DashboardPage({
     try {
       await updateUserPersonalization(user.uid, user.email, profileForm)
       setProfileSaved('Saved. It syncs live for both of you.')
+      playSuccess()
     } catch {
       setProfileError('Saving failed, try again.')
     } finally {

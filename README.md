@@ -58,6 +58,14 @@ npm install
 npm run dev
 ```
 
+6. Install Cloud Functions dependencies:
+
+```bash
+cd functions
+npm install
+cd ..
+```
+
 ## Implementation order
 
 1. Dashboard page
@@ -97,3 +105,21 @@ npm run dev
 ## Firebase rules
 
 Use the included `firestore.rules` and `storage.rules`, replacing admin emails with your real admin account(s) before deploying rules.
+
+## Background push (app closed)
+
+To receive partner updates when the app is closed:
+
+1. Deploy Firestore/Storage rules:
+
+```bash
+npm run firebase:deploy:rules
+```
+
+2. Deploy Cloud Functions:
+
+```bash
+npm run firebase:deploy:functions
+```
+
+3. Ensure users grant notification permission and app is installed as PWA.

@@ -1,6 +1,8 @@
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -23,6 +25,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
   const [userAccessControl, setUserAccessControl] = useState(null)
+
+  useEffect(() => {
+    setPersistence(auth, browserLocalPersistence).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import FeedbackToast from '../components/ui/FeedbackToast'
 import StatusBadge from '../components/StatusBadge'
 import { STATUS_OPTIONS } from '../constants/options'
 import { useSound } from '../context/SoundContext'
@@ -9,6 +10,7 @@ import { formatLastSeen } from '../utils/date'
 function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
   const [savingStatus, setSavingStatus] = useState('')
   const [errorText, setErrorText] = useState('')
+  const [toastVisible, setToastVisible] = useState(false)
   const { playSuccess } = useSound()
   const partnerPrompt = useMemo(() => {
     if (!partnerStatusData.linked) {
@@ -19,6 +21,14 @@ function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
     }
     return ''
   }, [partnerStatusData.linked, partnerStatusData.status])
+
+  useEffect(() => {
+    if (!toastVisible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setToastVisible(false), 2200)
+    return () => window.clearTimeout(timerId)
+  }, [toastVisible])
 
   async function setStatus(status) {
     setSavingStatus(status)
@@ -37,6 +47,7 @@ function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
         type: 'status',
         source: 'status_update',
       })
+      setToastVisible(true)
       playSuccess()
     } catch {
       setErrorText('Unable to update status.')
@@ -89,6 +100,11 @@ function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
           </div>
         )}
       </SoftCard>
+      <FeedbackToast
+        visible={toastVisible}
+        message="Saved 💜"
+        onClose={() => setToastVisible(false)}
+      />
     </section>
   )
 }

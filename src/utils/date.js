@@ -21,9 +21,22 @@ export function formatLastSeen(timestamp) {
   }
 
   const date = timestamp.toDate()
-  return `Updated ${new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)}`
-}
+  const now = Date.now()
+  const diffMs = Math.max(0, now - date.getTime())
+  const diffMinutes = Math.floor(diffMs / 60000)
 
+  if (diffMinutes < 1) {
+    return 'Last updated: just now'
+  }
+  if (diffMinutes < 60) {
+    return `Last updated: ${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) {
+    return `Last updated: ${diffHours} hr${diffHours === 1 ? '' : 's'} ago`
+  }
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `Last updated: ${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+}

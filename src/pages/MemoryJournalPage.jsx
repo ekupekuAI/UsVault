@@ -1,8 +1,10 @@
-import { startTransition, useDeferredValue, useEffect, useState } from 'react'
+import { startTransition, useDeferredValue, useEffect, useRef, useState } from 'react'
+import MicroHeartBurst from '../components/effects/MicroHeartBurst'
 import MemoryTimelineItem from '../components/MemoryTimelineItem'
 import SmartImage from '../components/SmartImage'
 import HeartLoader from '../components/HeartLoader'
 import PrimaryButton from '../components/ui/PrimaryButton'
+import FeedbackToast from '../components/ui/FeedbackToast'
 import SoftCard from '../components/ui/SoftCard'
 import SoftModal from '../components/ui/SoftModal'
 import { useSound } from '../context/SoundContext'
@@ -36,11 +38,23 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deletingDate, setDeletingDate] = useState('')
   const [deleteError, setDeleteError] = useState('')
+  const [hiddenDates, setHiddenDates] = useState([])
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState(null)
+  const pendingDeleteRef = useRef(null)
+  const pendingDeleteTimerRef = useRef(null)
+
+  const [toast, setToast] = useState({ visible: false, message: '', actionLabel: '' })
+  const [heartBurstVisible, setHeartBurstVisible] = useState(false)
 
   const { playSuccess } = useSound()
 
   const todayKey = formatDateKey(new Date())
   const deferredEntries = useDeferredValue(entries)
+  const visibleEntries = deferredEntries.filter((entry) => !hiddenDates.includes(entry.date))
+
+  function showToast(message, actionLabel = '') {
+    setToast({ visible: true, message, actionLabel })
+  }
 
   useEffect(() => {
     setText(todayEntry?.text || '')
@@ -54,10 +68,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
 
     const objectUrl = URL.createObjectURL(selectedImage)
     setPreviewUrl(objectUrl)
-
-    return () => {
-      URL.revokeObjectURL(objectUrl)
-    }
+    return () => URL.revokeObjectURL(objectUrl)
   }, [selectedImage, todayEntry?.imageUrl])
 
   useEffect(() => {
@@ -75,16 +86,56 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
 
   useEffect(() => {
     if (!editingEntry || !editImageFile) {
-      return
+      return undefined
     }
 
     const objectUrl = URL.createObjectURL(editImageFile)
     setEditPreview(objectUrl)
-
-    return () => {
-      URL.revokeObjectURL(objectUrl)
-    }
+    return () => URL.revokeObjectURL(objectUrl)
   }, [editImageFile, editingEntry])
+
+  useEffect(() => {
+    if (!showActionLoader) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setShowActionLoader(false), 1800)
+    return () => window.clearTimeout(timerId)
+  }, [showActionLoader])
+
+  useEffect(() => {
+    if (!saveGlow) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setSaveGlow(false), 360)
+    return () => window.clearTimeout(timerId)
+  }, [saveGlow])
+
+  useEffect(() => {
+    if (!toast.visible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => {
+      setToast((current) => ({ ...current, visible: false }))
+    }, 2600)
+    return () => window.clearTimeout(timerId)
+  }, [toast.visible])
+
+  useEffect(() => {
+    if (!heartBurstVisible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setHeartBurstVisible(false), 860)
+    return () => window.clearTimeout(timerId)
+  }, [heartBurstVisible])
+
+  useEffect(
+    () => () => {
+      if (pendingDeleteTimerRef.current) {
+        window.clearTimeout(pendingDeleteTimerRef.current)
+      }
+    },
+    [],
+  )
 
   async function handleSave(event) {
     event.preventDefault()
@@ -97,12 +148,19 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       let imagePayload = {}
 
       if (selectedImage) {
-        imagePayload = await uploadEntryImage(
-          user.uid,
-          todayKey,
-          selectedImage,
-          todayEntry?.imagePath || '',
-        )
+        try {
+          imagePayload = await uploadEntryImage(
+            user.uid,
+            todayKey,
+            selectedImage,
+            todayEntry?.imagePath || '',
+          )
+        } catch {
+          setSaveError('Upload failed, try again.')
+          setSaving(false)
+          window.setTimeout(() => setShowActionLoader(false), 350)
+          return
+        }
       }
 
       await saveDailyEntry(user.uid, todayKey, {
@@ -127,6 +185,9 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         setSuccessText('Saved to your vault.')
         setSaveGlow(true)
       })
+
+      showToast('Saved 💜')
+      setHeartBurstVisible(true)
       playSuccess()
     } catch {
       setSaveError('Saving failed, try again.')
@@ -135,23 +196,6 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       window.setTimeout(() => setShowActionLoader(false), 650)
     }
   }
-
-  useEffect(() => {
-    if (!showActionLoader) {
-      return undefined
-    }
-
-    const timerId = window.setTimeout(() => setShowActionLoader(false), 1800)
-    return () => window.clearTimeout(timerId)
-  }, [showActionLoader])
-
-  useEffect(() => {
-    if (!saveGlow) {
-      return undefined
-    }
-    const timerId = window.setTimeout(() => setSaveGlow(false), 360)
-    return () => window.clearTimeout(timerId)
-  }, [saveGlow])
 
   function startEdit(entry) {
     setEditingEntry(entry)
@@ -166,15 +210,22 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
 
     setEditSaving(true)
     setEditError('')
+
     try {
       let imagePayload = {}
       if (editImageFile) {
-        imagePayload = await uploadEntryImage(
-          user.uid,
-          editingEntry.date,
-          editImageFile,
-          editingEntry.imagePath || '',
-        )
+        try {
+          imagePayload = await uploadEntryImage(
+            user.uid,
+            editingEntry.date,
+            editImageFile,
+            editingEntry.imagePath || '',
+          )
+        } catch {
+          setEditError('Upload failed, try again.')
+          setEditSaving(false)
+          return
+        }
       }
 
       await saveDailyEntry(user.uid, editingEntry.date, {
@@ -196,6 +247,8 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
 
       setEditingEntry(null)
       setSuccessText(`Memory updated for ${formatReadableDate(editingEntry.date)}.`)
+      showToast('Saved 💜')
+      setHeartBurstVisible(true)
       playSuccess()
     } catch {
       setEditError('Saving failed, try again.')
@@ -204,28 +257,72 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
     }
   }
 
-  async function confirmDelete() {
+  async function finalizePendingDelete() {
+    const entry = pendingDeleteRef.current
+    if (!entry) {
+      return
+    }
+
+    setDeletingDate(entry.date)
+    setDeleteError('')
+
+    try {
+      await deleteDailyEntry(user.uid, entry.date, entry.imagePath || '')
+      await saveInAppNotification(user.uid, {
+        title: 'Memory Deleted',
+        body: `Deleted memory from ${formatReadableDate(entry.date)}.`,
+        type: 'memory',
+      })
+      setSuccessText(`Deleted memory from ${formatReadableDate(entry.date)}.`)
+      showToast('Deleted')
+    } catch {
+      setDeleteError('Delete failed, try again.')
+      setHiddenDates((current) => current.filter((date) => date !== entry.date))
+    } finally {
+      setDeletingDate('')
+      pendingDeleteRef.current = null
+      setPendingDeleteEntry(null)
+    }
+  }
+
+  function undoDelete() {
+    if (pendingDeleteTimerRef.current) {
+      window.clearTimeout(pendingDeleteTimerRef.current)
+      pendingDeleteTimerRef.current = null
+    }
+
+    const entry = pendingDeleteRef.current
+    if (entry) {
+      setHiddenDates((current) => current.filter((date) => date !== entry.date))
+    }
+
+    pendingDeleteRef.current = null
+    setPendingDeleteEntry(null)
+    showToast('Undo complete')
+  }
+
+  function confirmDelete() {
     if (!deleteTarget) {
       return
     }
 
-    setDeletingDate(deleteTarget.date)
-    setDeleteError('')
-
-    try {
-      await deleteDailyEntry(user.uid, deleteTarget.date, deleteTarget.imagePath || '')
-      await saveInAppNotification(user.uid, {
-        title: 'Memory Deleted',
-        body: `Deleted memory from ${formatReadableDate(deleteTarget.date)}.`,
-        type: 'memory',
-      })
-      setDeleteTarget(null)
-      setSuccessText(`Deleted memory from ${formatReadableDate(deleteTarget.date)}.`)
-    } catch {
-      setDeleteError('Saving failed, try again.')
-    } finally {
-      setDeletingDate('')
+    if (pendingDeleteRef.current) {
+      setDeleteError('Finish current pending delete (Undo or wait) first.')
+      return
     }
+
+    const entry = deleteTarget
+    setDeleteTarget(null)
+    setDeleteError('')
+    setHiddenDates((current) => [...new Set([...current, entry.date])])
+    setPendingDeleteEntry(entry)
+    pendingDeleteRef.current = entry
+    showToast('Deleted', 'Undo')
+
+    pendingDeleteTimerRef.current = window.setTimeout(() => {
+      finalizePendingDelete()
+      pendingDeleteTimerRef.current = null
+    }, 5200)
   }
 
   return (
@@ -239,6 +336,10 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
       />
 
       <SoftCard title="Memory Journal" subtitle={formatReadableDate(todayKey)}>
+        <div className="relative">
+          <MicroHeartBurst visible={heartBurstVisible} />
+        </div>
+
         <form onSubmit={handleSave}>
           <textarea
             value={text}
@@ -274,7 +375,11 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
               {successText}
             </p>
           )}
-          {saveError && <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{saveError}</p>}
+          {saveError && (
+            <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+              {saveError}
+            </p>
+          )}
 
           <PrimaryButton type="submit" disabled={saving} className="mt-3 w-full">
             {saving ? 'Saving...' : 'Save Today'}
@@ -288,19 +393,19 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         ) : (
           <div className="max-h-[52vh] overflow-y-auto pr-1 scroll-smooth">
             <ul className="space-y-3">
-              {deferredEntries.length === 0 && (
+              {visibleEntries.length === 0 && (
                 <li className="rounded-2xl border border-violet-100/80 bg-violet-50/60 px-3 py-3 text-sm text-violet-700">
                   Start your first memory {'\u{1F49C}'}
                 </li>
               )}
-              {deferredEntries.map((entry, index) => (
+              {visibleEntries.map((entry, index) => (
                 <li key={entry.date} className="relative list-none">
-                  {index < deferredEntries.length - 1 && <span className="timeline-line" />}
+                  {index < visibleEntries.length - 1 && <span className="timeline-line" />}
                   <MemoryTimelineItem
                     entry={entry}
                     onEdit={startEdit}
                     onDelete={(item) => setDeleteTarget(item)}
-                    deleting={deletingDate === entry.date}
+                    deleting={deletingDate === entry.date || pendingDeleteEntry?.date === entry.date}
                   />
                 </li>
               ))}
@@ -335,7 +440,11 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
                 className="h-40 w-full rounded-2xl object-cover"
               />
             )}
-            {editError && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{editError}</p>}
+            {editError && (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {editError}
+              </p>
+            )}
             <PrimaryButton type="button" onClick={saveEdit} disabled={editSaving} className="w-full">
               {editSaving ? 'Saving...' : 'Save Changes'}
             </PrimaryButton>
@@ -349,7 +458,11 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
             <p className="text-sm text-slate-600">
               Delete memory from <span className="font-semibold">{formatReadableDate(deleteTarget.date)}</span>?
             </p>
-            {deleteError && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{deleteError}</p>}
+            {deleteError && (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {deleteError}
+              </p>
+            )}
             <div className="grid gap-2">
               <button
                 type="button"
@@ -370,6 +483,14 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
           </div>
         )}
       </SoftModal>
+
+      <FeedbackToast
+        visible={toast.visible}
+        message={toast.message}
+        actionLabel={toast.actionLabel}
+        onAction={toast.actionLabel === 'Undo' ? undoDelete : undefined}
+        onClose={() => setToast((current) => ({ ...current, visible: false }))}
+      />
     </section>
   )
 }

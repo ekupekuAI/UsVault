@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { useSound } from '../context/SoundContext'
 import { hoverLift, softSpring, tapPress } from './motion/motionTokens'
@@ -37,7 +37,19 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
         <p className="mt-2 truncate text-xs text-slate-500/90">{user?.email}</p>
       </header>
 
-      <section className="mt-4 space-y-3 pb-20">{children}</section>
+      <section className="mt-4 space-y-3 pb-20">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.24 }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </section>
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto w-full max-w-md border-t border-violet-100/80 bg-white/84 px-2 py-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] backdrop-blur-2xl">
         <ul

@@ -3,21 +3,21 @@
 :root {
   color-scheme: light;
   font-family: "Quicksand", "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --bg-pink: #fff0f7;
-  --bg-lavender: #f3eeff;
-  --bg-blue: #edf6ff;
-  --bg-purple: #f6ecff;
-  --ink-title: #3f345f;
-  --ink-body: #5f647a;
-  --ring-soft: #d7cbff;
+  --bg-pink: #f4d5eb;
+  --bg-lavender: #ddd2f8;
+  --bg-blue: #cfdbf8;
+  --bg-purple: #e5d3fa;
+  --ink-title: #2e2354;
+  --ink-body: #4e5670;
+  --ring-soft: #beb0f6;
 }
 
 body {
   margin: 0;
   background:
-    radial-gradient(120% 78% at 0% 0%, rgba(255, 187, 223, 0.58) 0%, transparent 57%),
-    radial-gradient(120% 80% at 100% 0%, rgba(208, 219, 255, 0.55) 0%, transparent 58%),
-    linear-gradient(180deg, #f6efff 0%, #f7edfb 54%, #edf6ff 100%);
+    radial-gradient(125% 82% at 0% 0%, rgba(219, 162, 201, 0.56) 0%, transparent 55%),
+    radial-gradient(122% 80% at 100% 0%, rgba(173, 187, 233, 0.54) 0%, transparent 56%),
+    linear-gradient(180deg, #ddd4ef 0%, #d8cee8 54%, #ccd7ed 100%);
   color: var(--ink-body);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -50,8 +50,8 @@ button {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(70% 42% at 50% 0%, rgba(250, 219, 237, 0.5) 0%, transparent 70%),
-    radial-gradient(80% 40% at 40% 100%, rgba(200, 226, 255, 0.3) 0%, transparent 80%);
+    radial-gradient(70% 42% at 50% 0%, rgba(235, 196, 220, 0.48) 0%, transparent 70%),
+    radial-gradient(80% 40% at 40% 100%, rgba(176, 196, 230, 0.33) 0%, transparent 80%);
 }
 
 .card-soft {
@@ -82,11 +82,16 @@ button {
 }
 
 .nav-icon-orb {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 235, 255, 0.42));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(242, 226, 253, 0.42));
   box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.8),
     0 6px 10px rgba(156, 130, 223, 0.16);
-  transition: box-shadow 180ms ease, transform 180ms ease;
+  transition: box-shadow 180ms ease, transform 180ms ease, filter 180ms ease;
+}
+
+.nav-icon-orb:hover {
+  transform: scale(1.06);
+  filter: saturate(130%);
 }
 
 .nav-icon-orb-active {
@@ -105,7 +110,7 @@ button {
 }
 
 .pressable:active {
-  transform: scale(0.97);
+  transform: scale(0.95);
 }
 
 .fade-in-up {

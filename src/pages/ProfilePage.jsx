@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import PrimaryButton from '../components/ui/PrimaryButton'
 import SoftCard from '../components/ui/SoftCard'
+import { useAuth } from '../context/AuthContext'
+import { useSound } from '../context/SoundContext'
 import { linkPartnerByCode, updateUserProfileDetails } from '../services/journalService'
 
 function mapLinkError(error) {
@@ -24,6 +26,8 @@ function mapLinkError(error) {
 }
 
 function ProfilePage({ user, myProfile, partnerStatusData }) {
+  const { playSuccess } = useSound()
+  const { logout } = useAuth()
   const [displayName, setDisplayName] = useState('')
   const [partnerName, setPartnerName] = useState('')
   const [photoFile, setPhotoFile] = useState(null)
@@ -71,6 +75,7 @@ function ProfilePage({ user, myProfile, partnerStatusData }) {
       })
       setPhotoFile(null)
       setSaveMessage('Profile updated.')
+      playSuccess()
     } catch {
       setSaveError('Could not save profile. Try again.')
     } finally {
@@ -87,6 +92,7 @@ function ProfilePage({ user, myProfile, partnerStatusData }) {
       const result = await linkPartnerByCode(user.uid, user.email, partnerCodeInput)
       setPartnerCodeInput('')
       setLinkMessage(`Linked permanently with ${result.partnerLabel}.`)
+      playSuccess()
     } catch (error) {
       setLinkError(mapLinkError(error))
     } finally {
@@ -138,6 +144,13 @@ function ProfilePage({ user, myProfile, partnerStatusData }) {
           <PrimaryButton type="button" onClick={saveProfile} disabled={saving} className="w-full">
             {saving ? 'Saving...' : 'Save Profile'}
           </PrimaryButton>
+          <button
+            type="button"
+            onClick={logout}
+            className="pressable w-full rounded-2xl border border-violet-200 bg-white/85 px-3 py-2.5 text-sm font-semibold text-violet-700"
+          >
+            Logout
+          </button>
 
           {saveMessage && <p className="text-xs font-semibold text-emerald-700">{saveMessage}</p>}
           {saveError && <p className="text-xs font-semibold text-rose-700">{saveError}</p>}

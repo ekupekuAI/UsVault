@@ -25,13 +25,45 @@ const FLOAT_ITEMS = [
   },
 ]
 
+const PARTICLES = Array.from({ length: 10 }, (_, index) => ({
+  id: `particle-${index}`,
+  left: `${8 + index * 9}%`,
+  delay: (index % 5) * 1.1,
+  duration: 14 + (index % 4) * 2,
+}))
+
 function FloatingRomanceDecor() {
   const MotionDiv = motion.div
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute -left-20 top-[18%] h-64 w-64 rounded-full bg-gradient-to-br from-rose-200/20 to-violet-200/15 blur-3xl" />
-      <div className="absolute -right-24 top-[55%] h-72 w-72 rounded-full bg-gradient-to-br from-violet-200/20 to-sky-200/15 blur-3xl" />
+      <MotionDiv
+        aria-hidden="true"
+        className="absolute -left-24 top-[14%] h-72 w-72 rounded-full bg-gradient-to-br from-rose-300/18 to-violet-300/14 blur-3xl"
+        animate={{ x: [0, 18, 0], y: [0, -12, 0] }}
+        transition={{ duration: 15, ease: 'easeInOut', repeat: Number.POSITIVE_INFINITY }}
+      />
+      <MotionDiv
+        aria-hidden="true"
+        className="absolute -right-28 top-[58%] h-80 w-80 rounded-full bg-gradient-to-br from-violet-300/20 to-sky-300/14 blur-3xl"
+        animate={{ x: [0, -16, 0], y: [0, 12, 0] }}
+        transition={{ duration: 17, ease: 'easeInOut', repeat: Number.POSITIVE_INFINITY }}
+      />
+
+      {PARTICLES.map((particle) => (
+        <MotionDiv
+          key={particle.id}
+          className="absolute top-[105%] h-1.5 w-1.5 rounded-full bg-violet-200/28"
+          style={{ left: particle.left }}
+          animate={{ y: [0, -980], opacity: [0, 0.6, 0] }}
+          transition={{
+            duration: particle.duration,
+            ease: 'linear',
+            repeat: Number.POSITIVE_INFINITY,
+            delay: particle.delay,
+          }}
+        />
+      ))}
 
       {FLOAT_ITEMS.map((item) => (
         <MotionDiv

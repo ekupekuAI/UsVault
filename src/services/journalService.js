@@ -1,4 +1,6 @@
 import {
+  arrayRemove,
+  arrayUnion,
   addDoc,
   collection,
   deleteDoc,
@@ -273,6 +275,43 @@ export async function ensureUserAccessControl(uid, email) {
   }
 
   return normalizeAccessControl(snapshot.data())
+}
+
+export async function savePushToken(uid, token, userAgent = '') {
+  const normalizedUid = toSafeString(uid)
+  const normalizedToken = toSafeString(token)
+  if (!normalizedUid || !normalizedToken) {
+    return
+  }
+
+  await setDoc(
+    doc(db, 'push_tokens', normalizedUid),
+    {
+      uid: normalizedUid,
+      tokens: arrayUnion(normalizedToken),
+      userAgent: toSafeString(userAgent).slice(0, 240),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function removePushToken(uid, token) {
+  const normalizedUid = toSafeString(uid)
+  const normalizedToken = toSafeString(token)
+  if (!normalizedUid || !normalizedToken) {
+    return
+  }
+
+  await setDoc(
+    doc(db, 'push_tokens', normalizedUid),
+    {
+      uid: normalizedUid,
+      tokens: arrayRemove(normalizedToken),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
 }
 
 export async function getUserAccessControl(uid) {

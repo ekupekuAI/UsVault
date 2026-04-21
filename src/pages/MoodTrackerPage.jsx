@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import FeedbackToast from '../components/ui/FeedbackToast'
 import { MOOD_OPTIONS } from '../constants/options'
 import { useSound } from '../context/SoundContext'
 import { notifyLinkedPartner, saveInAppNotification, updateUserMood } from '../services/journalService'
@@ -9,7 +10,16 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
   const [savingMood, setSavingMood] = useState('')
   const [errorText, setErrorText] = useState('')
   const [selectedMood, setSelectedMood] = useState('')
+  const [toastVisible, setToastVisible] = useState(false)
   const { playSuccess } = useSound()
+
+  useEffect(() => {
+    if (!toastVisible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setToastVisible(false), 2200)
+    return () => window.clearTimeout(timerId)
+  }, [toastVisible])
 
   async function setMood(mood) {
     setErrorText('')
@@ -30,6 +40,7 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
         type: 'mood',
         source: 'mood_update',
       })
+      setToastVisible(true)
       playSuccess()
     } catch {
       setErrorText('Unable to save mood right now.')
@@ -89,6 +100,11 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
           ))}
         </ul>
       </SoftCard>
+      <FeedbackToast
+        visible={toastVisible}
+        message="Saved 💜"
+        onClose={() => setToastVisible(false)}
+      />
     </section>
   )
 }

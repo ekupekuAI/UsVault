@@ -21,6 +21,8 @@ import {
   ensureStatusDocument,
   formatDateKey,
   markAllNotificationsRead,
+  removePushToken,
+  savePushToken,
   subscribeUserNotifications,
   subscribeEntryByDate,
   subscribeStatusMap,
@@ -36,6 +38,8 @@ import { pickRandomSurpriseMessage } from './utils/emotional'
 
 const DailyReminder = lazy(() => import('./components/DailyReminder'))
 const FloatingRomanceDecor = lazy(() => import('./components/FloatingRomanceDecor'))
+const PUSH_TOKEN_UID_KEY = 'usvault_push_token_uid'
+const PUSH_TOKEN_VALUE_KEY = 'usvault_push_token_value'
 
 const BASE_TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '\u{1F3E0}' },
@@ -209,6 +213,16 @@ function AppContent() {
   }, [activeTab, isAdmin])
 
   useEffect(() => {
+    if (!user || typeof window === 'undefined') {
+      return
+    }
+    if (window.location.pathname === '/auth') {
+      window.history.replaceState({}, '', '/')
+      setPublicPath('/')
+    }
+  }, [user])
+
+  useEffect(() => {
     if (!user) {
       return undefined
     }
@@ -227,6 +241,24 @@ function AppContent() {
       } else if (result.permission === 'unsupported') {
         console.log('Notifications are not supported in this browser.')
       } else if (result.permission === 'granted') {
+        const nextToken = String(result.token || '').trim()
+        const previousUid = localStorage.getItem(PUSH_TOKEN_UID_KEY) || ''
+        const previousToken = localStorage.getItem(PUSH_TOKEN_VALUE_KEY) || ''
+
+        if (
+          previousUid &&
+          previousToken &&
+          (previousUid !== user.uid || previousToken !== nextToken)
+        ) {
+          await removePushToken(previousUid, previousToken).catch(() => {})
+        }
+
+        if (nextToken) {
+          await savePushToken(user.uid, nextToken, navigator.userAgent).catch(() => {})
+          localStorage.setItem(PUSH_TOKEN_UID_KEY, user.uid)
+          localStorage.setItem(PUSH_TOKEN_VALUE_KEY, nextToken)
+        }
+
         await startForegroundNotifications()
       }
     }
@@ -237,6 +269,20 @@ function AppContent() {
       isMounted = false
       stopForegroundNotifications()
     }
+  }, [user])
+
+  useEffect(() => {
+    if (user) {
+      return
+    }
+
+    const previousUid = localStorage.getItem(PUSH_TOKEN_UID_KEY) || ''
+    const previousToken = localStorage.getItem(PUSH_TOKEN_VALUE_KEY) || ''
+    if (previousUid && previousToken) {
+      removePushToken(previousUid, previousToken).catch(() => {})
+    }
+    localStorage.removeItem(PUSH_TOKEN_UID_KEY)
+    localStorage.removeItem(PUSH_TOKEN_VALUE_KEY)
   }, [user])
 
   useEffect(() => {

@@ -47,5 +47,9 @@ service cloud.firestore {
         request.resource.data.canUseApp == true;
       allow create, update, delete: if isAdmin();
     }
+
+    match /push_tokens/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
   }
 }

@@ -19,5 +19,4 @@ export const softSpring = { type: 'spring', stiffness: 250, damping: 22, mass: 0
 export const quickSpring = { type: 'spring', stiffness: 320, damping: 24, mass: 0.6 }
 
 export const hoverLift = { scale: 1.03, y: -2 }
-export const tapPress = { scale: 0.97 }
-
+export const tapPress = { scale: 0.95 }

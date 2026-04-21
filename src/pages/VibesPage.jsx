@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import MicroHeartBurst from '../components/effects/MicroHeartBurst'
 import PrimaryButton from '../components/ui/PrimaryButton'
+import FeedbackToast from '../components/ui/FeedbackToast'
 import SoftCard from '../components/ui/SoftCard'
+import SoftModal from '../components/ui/SoftModal'
 import { useSound } from '../context/SoundContext'
 import {
   formatDateKey,
@@ -57,9 +60,20 @@ function VibesPage({ user, myProfile, todayEntry }) {
   const [gossipEntries, setGossipEntries] = useState([])
   const [gossipSaving, setGossipSaving] = useState(false)
   const [gossipError, setGossipError] = useState('')
+  const [gossipDeleteTarget, setGossipDeleteTarget] = useState(null)
 
   const [noteInput, setNoteInput] = useState('')
   const [notes, setNotes] = useState([])
+  const [noteDeleteTarget, setNoteDeleteTarget] = useState(null)
+
+  const [toast, setToast] = useState({ visible: false, message: '', actionLabel: '' })
+  const [heartBurstVisible, setHeartBurstVisible] = useState(false)
+  const undoRef = useRef(null)
+  const undoTimerRef = useRef(null)
+
+  function showToast(message, actionLabel = '') {
+    setToast({ visible: true, message, actionLabel })
+  }
 
   useEffect(() => {
     setDateIdeas(readList(dateKey))
@@ -87,6 +101,73 @@ function VibesPage({ user, myProfile, todayEntry }) {
     setGossipEntries(sorted)
   }, [myProfile?.gossipEntries])
 
+  useEffect(() => {
+    if (!toast.visible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => {
+      setToast((current) => ({ ...current, visible: false }))
+    }, 2800)
+    return () => window.clearTimeout(timerId)
+  }, [toast.visible])
+
+  useEffect(() => {
+    if (!heartBurstVisible) {
+      return undefined
+    }
+    const timerId = window.setTimeout(() => setHeartBurstVisible(false), 880)
+    return () => window.clearTimeout(timerId)
+  }, [heartBurstVisible])
+
+  useEffect(
+    () => () => {
+      if (undoTimerRef.current) {
+        window.clearTimeout(undoTimerRef.current)
+      }
+    },
+    [],
+  )
+
+  function queueUndo(payload) {
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current)
+    }
+    undoRef.current = payload
+    undoTimerRef.current = window.setTimeout(() => {
+      undoRef.current = null
+      undoTimerRef.current = null
+    }, 5200)
+    showToast('Deleted', 'Undo')
+  }
+
+  async function handleUndo() {
+    if (!undoRef.current) {
+      return
+    }
+
+    const payload = undoRef.current
+    undoRef.current = null
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current)
+      undoTimerRef.current = null
+    }
+
+    if (payload.type === 'gossip') {
+      const restoreList = [...payload.nextList]
+      restoreList.splice(payload.index, 0, payload.item)
+      setGossipEntries(restoreList)
+      await syncGossip(restoreList)
+    }
+
+    if (payload.type === 'note') {
+      const restoreNotes = [...payload.nextList]
+      restoreNotes.splice(payload.index, 0, payload.item)
+      setNotes(restoreNotes)
+    }
+
+    showToast('Undo complete')
+  }
+
   function addDateIdea(event) {
     event.preventDefault()
     const idea = dateIdeaInput.trim()
@@ -95,6 +176,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     }
     setDateIdeas((current) => [{ id: safeId(), text: idea }, ...current])
     setDateIdeaInput('')
+    showToast('Saved 💜')
     playSuccess()
   }
 
@@ -141,6 +223,8 @@ function VibesPage({ user, myProfile, todayEntry }) {
         source: 'dice_memory_save',
       })
       setDiceSaveMessage('Saved to today\'s memory.')
+      setHeartBurstVisible(true)
+      showToast('Saved 💜')
       playSuccess()
     } catch {
       setDiceSaveError('Saving failed, try again.')
@@ -164,6 +248,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     )
     setEditingIdeaId('')
     setEditingIdeaText('')
+    showToast('Saved 💜')
     playSuccess()
   }
 
@@ -173,6 +258,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
       setEditingIdeaId('')
       setEditingIdeaText('')
     }
+    showToast('Deleted')
   }
 
   async function syncGossip(nextList) {
@@ -195,6 +281,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     if (!text) {
       return
     }
+
     const savedTag = gossipTag
     const nextList = [{ id: safeId(), text, tag: savedTag, createdAt: Date.now() }, ...gossipEntries]
     setGossipEntries(nextList)
@@ -204,6 +291,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     if (!synced) {
       return
     }
+
     await saveInAppNotification(user.uid, {
       title: 'Gossip Added',
       body: `New gossip saved in ${savedTag}.`,
@@ -216,13 +304,22 @@ function VibesPage({ user, myProfile, todayEntry }) {
       type: 'gossip',
       source: 'gossip_add',
     })
+
+    showToast('Saved 💜')
+    setHeartBurstVisible(true)
     playSuccess()
   }
 
-  function deleteGossip(id) {
-    const nextList = gossipEntries.filter((item) => item.id !== id)
+  function confirmDeleteGossip() {
+    if (!gossipDeleteTarget) {
+      return
+    }
+    const index = gossipEntries.findIndex((item) => item.id === gossipDeleteTarget.id)
+    const nextList = gossipEntries.filter((item) => item.id !== gossipDeleteTarget.id)
     setGossipEntries(nextList)
     syncGossip(nextList)
+    queueUndo({ type: 'gossip', item: gossipDeleteTarget, index, nextList })
+    setGossipDeleteTarget(null)
   }
 
   function addNote(event) {
@@ -233,11 +330,27 @@ function VibesPage({ user, myProfile, todayEntry }) {
     }
     setNotes((current) => [{ id: safeId(), text }, ...current])
     setNoteInput('')
+    showToast('Saved 💜')
+    playSuccess()
+  }
+
+  function confirmDeleteNote() {
+    if (!noteDeleteTarget) {
+      return
+    }
+    const index = notes.findIndex((item) => item.id === noteDeleteTarget.id)
+    const nextList = notes.filter((item) => item.id !== noteDeleteTarget.id)
+    setNotes(nextList)
+    queueUndo({ type: 'note', item: noteDeleteTarget, index, nextList })
+    setNoteDeleteTarget(null)
   }
 
   return (
     <section className="space-y-3">
       <SoftCard title="Date Dice" subtitle="Private to you only">
+        <div className="relative">
+          <MicroHeartBurst visible={heartBurstVisible} />
+        </div>
         <form className="space-y-2" onSubmit={addDateIdea}>
           <input
             type="text"
@@ -253,7 +366,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
 
         {dateIdeas.length === 0 && (
           <p className="mt-3 text-center text-sm text-violet-700">
-            Add your first date idea... let&apos;s make a plan {'\u{1F49C}'}
+            Add your first date idea... let&apos;s make a plan 💜
           </p>
         )}
 
@@ -392,7 +505,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
 
         <ul className="mt-3 space-y-2">
           {gossipEntries.length === 0 && (
-            <li className="text-center text-sm text-violet-700">Spill something fun {'\u2615'}</li>
+            <li className="text-center text-sm text-violet-700">Spill something fun ☕</li>
           )}
           {gossipEntries.map((entry) => (
             <li
@@ -405,7 +518,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => deleteGossip(entry.id)}
+                  onClick={() => setGossipDeleteTarget(entry)}
                   className="pressable rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700"
                 >
                   Delete
@@ -433,20 +546,81 @@ function VibesPage({ user, myProfile, todayEntry }) {
 
         <ul className="mt-3 space-y-2">
           {notes.length === 0 && (
-            <li className="text-center text-sm text-violet-700">
-              Write what&apos;s on your mind {'\u{1F4AD}'}
-            </li>
+            <li className="text-center text-sm text-violet-700">Write what&apos;s on your mind 💭</li>
           )}
           {notes.map((note) => (
             <li
               key={note.id}
-              className="rounded-2xl border border-violet-100 bg-white/80 px-3 py-2 text-sm text-slate-700"
+              className="flex items-center justify-between gap-2 rounded-2xl border border-violet-100 bg-white/80 px-3 py-2 text-sm text-slate-700"
             >
-              {note.text}
+              <span className="pr-2">{note.text}</span>
+              <button
+                type="button"
+                onClick={() => setNoteDeleteTarget(note)}
+                className="pressable rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700"
+              >
+                Delete
+              </button>
             </li>
           ))}
         </ul>
       </SoftCard>
+
+      <SoftModal open={Boolean(gossipDeleteTarget)} onClose={() => setGossipDeleteTarget(null)} title="Delete Gossip">
+        {gossipDeleteTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Delete this gossip entry?</p>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={confirmDeleteGossip}
+                className="pressable rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700"
+              >
+                Yes, Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setGossipDeleteTarget(null)}
+                className="pressable rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </SoftModal>
+
+      <SoftModal open={Boolean(noteDeleteTarget)} onClose={() => setNoteDeleteTarget(null)} title="Delete Note">
+        {noteDeleteTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Delete this note?</p>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={confirmDeleteNote}
+                className="pressable rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700"
+              >
+                Yes, Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setNoteDeleteTarget(null)}
+                className="pressable rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </SoftModal>
+
+      <FeedbackToast
+        visible={toast.visible}
+        message={toast.message}
+        actionLabel={toast.actionLabel}
+        onAction={toast.actionLabel === 'Undo' ? handleUndo : undefined}
+        onClose={() => setToast((current) => ({ ...current, visible: false }))}
+      />
     </section>
   )
 }
