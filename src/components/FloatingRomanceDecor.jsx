@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 const HEART_ITEMS = [
   {
     key: 'heart-top-left',
-    className: 'left-[6%] top-[10%] text-3xl',
+    className: 'left-[4%] top-[8%] text-4xl sm:text-3xl',
     duration: 15,
     delay: 0.2,
     driftX: 10,
@@ -12,7 +12,7 @@ const HEART_ITEMS = [
   },
   {
     key: 'heart-top-right',
-    className: 'right-[8%] top-[14%] text-2xl',
+    className: 'right-[4%] top-[12%] text-3xl sm:text-2xl',
     duration: 16,
     delay: 0.8,
     driftX: -12,
@@ -20,7 +20,7 @@ const HEART_ITEMS = [
   },
   {
     key: 'heart-mid-left',
-    className: 'left-[10%] top-[38%] text-2xl',
+    className: 'left-[3%] top-[35%] text-3xl sm:text-2xl',
     duration: 18,
     delay: 0.4,
     driftX: 10,
@@ -28,7 +28,7 @@ const HEART_ITEMS = [
   },
   {
     key: 'heart-mid-right',
-    className: 'right-[10%] top-[42%] text-3xl',
+    className: 'right-[3%] top-[40%] text-4xl sm:text-3xl',
     duration: 14,
     delay: 1.2,
     driftX: -10,
@@ -36,7 +36,7 @@ const HEART_ITEMS = [
   },
   {
     key: 'heart-bottom-left',
-    className: 'left-[12%] top-[70%] text-2xl',
+    className: 'left-[4%] top-[66%] text-3xl sm:text-2xl',
     duration: 17,
     delay: 0.6,
     driftX: 9,
@@ -44,7 +44,7 @@ const HEART_ITEMS = [
   },
   {
     key: 'heart-bottom-right',
-    className: 'right-[12%] top-[74%] text-2xl',
+    className: 'right-[4%] top-[72%] text-3xl sm:text-2xl',
     duration: 15,
     delay: 1.1,
     driftX: -9,
@@ -62,15 +62,15 @@ function FloatingRomanceDecor() {
           key={item.key}
           className={`absolute select-none ${item.className}`}
           style={{
-            color: 'color-mix(in srgb, var(--theme-secondary) 72%, white)',
+            color: 'color-mix(in srgb, var(--theme-secondary) 84%, white)',
             textShadow:
-              '0 0 8px color-mix(in srgb, var(--theme-secondary) 40%, transparent), 0 0 18px color-mix(in srgb, var(--theme-primary) 24%, transparent)',
+              '0 0 10px color-mix(in srgb, var(--theme-secondary) 44%, transparent), 0 0 24px color-mix(in srgb, var(--theme-primary) 30%, transparent)',
           }}
           animate={{
             y: [0, -item.driftY, 0],
             x: [0, item.driftX, 0],
-            opacity: [0.45, 0.76, 0.45],
-            scale: [1, 1.08, 1],
+            opacity: [0.56, 0.92, 0.56],
+            scale: [1, 1.1, 1],
           }}
           transition={{
             duration: item.duration,
