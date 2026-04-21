@@ -14,6 +14,9 @@ function createTonePlayer(audioContextRef) {
 
     const context = audioContextRef.current || new ContextClass()
     audioContextRef.current = context
+    if (context.state === 'suspended') {
+      context.resume().catch(() => {})
+    }
 
     const now = context.currentTime
     const oscillator = context.createOscillator()
@@ -35,7 +38,13 @@ function createTonePlayer(audioContextRef) {
 }
 
 export function SoundProvider({ children }) {
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem(SOUND_STORAGE_KEY) === 'true')
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const stored = localStorage.getItem(SOUND_STORAGE_KEY)
+    if (stored === null) {
+      return true
+    }
+    return stored === 'true'
+  })
   const audioContextRef = useRef(null)
   const tonePlayerRef = useRef(null)
 
@@ -47,7 +56,7 @@ export function SoundProvider({ children }) {
     if (!soundEnabled || !tonePlayerRef.current) {
       return
     }
-    tonePlayerRef.current(640, 0.045, 0.013, 'triangle')
+    tonePlayerRef.current(640, 0.045, 0.02, 'triangle')
   }, [soundEnabled])
 
   const playChime = useCallback(() => {
@@ -55,9 +64,27 @@ export function SoundProvider({ children }) {
       return
     }
 
-    tonePlayerRef.current(740, 0.08, 0.016, 'sine')
-    window.setTimeout(() => tonePlayerRef.current?.(930, 0.11, 0.015, 'sine'), 90)
+    tonePlayerRef.current(740, 0.08, 0.024, 'sine')
+    window.setTimeout(() => tonePlayerRef.current?.(930, 0.11, 0.022, 'sine'), 90)
   }, [soundEnabled])
+
+  const triggerHaptic = useCallback(
+    (pattern = [16]) => {
+      if (!soundEnabled) {
+        return
+      }
+      if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') {
+        return
+      }
+      navigator.vibrate(pattern)
+    },
+    [soundEnabled],
+  )
+
+  const playSuccess = useCallback(() => {
+    playChime()
+    triggerHaptic([18, 26, 18])
+  }, [playChime, triggerHaptic])
 
   const toggleSound = useCallback(() => {
     setSoundEnabled((current) => {
@@ -91,14 +118,32 @@ export function SoundProvider({ children }) {
     }
   }, [playClick, soundEnabled])
 
+  useEffect(() => {
+    if (!soundEnabled) {
+      return undefined
+    }
+
+    function unlockAudioContext() {
+      const context = audioContextRef.current
+      if (context && context.state === 'suspended') {
+        context.resume().catch(() => {})
+      }
+    }
+
+    window.addEventListener('pointerdown', unlockAudioContext, { capture: true, passive: true })
+    return () => window.removeEventListener('pointerdown', unlockAudioContext, true)
+  }, [soundEnabled])
+
   const value = useMemo(
     () => ({
       soundEnabled,
       toggleSound,
       playClick,
       playChime,
+      playSuccess,
+      triggerHaptic,
     }),
-    [playChime, playClick, soundEnabled, toggleSound],
+    [playChime, playClick, playSuccess, soundEnabled, toggleSound, triggerHaptic],
   )
 
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>
@@ -113,4 +158,3 @@ export function useSound() {
 
   return context
 }
-

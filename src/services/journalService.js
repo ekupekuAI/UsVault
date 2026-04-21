@@ -65,6 +65,10 @@ function createPartnerCode(uid = '') {
   return `UV-${first}${last}`
 }
 
+function toSafeString(value = '') {
+  return String(value || '').trim()
+}
+
 function normalizeAccessControl(data = {}) {
   return {
     uid: String(data.uid || ''),
@@ -447,9 +451,12 @@ export async function updateUserGossipEntries(uid, email, entries) {
 }
 
 export async function saveInAppNotification(uid, payload = {}) {
-  const title = String(payload.title || '').trim()
-  const body = String(payload.body || '').trim()
-  const type = String(payload.type || 'info').trim()
+  const title = toSafeString(payload.title)
+  const body = toSafeString(payload.body)
+  const type = toSafeString(payload.type || 'info')
+  const originUid = toSafeString(payload.originUid)
+  const originEmail = toSafeString(payload.originEmail).toLowerCase()
+  const source = toSafeString(payload.source)
 
   if (!title && !body) {
     return
@@ -459,9 +466,46 @@ export async function saveInAppNotification(uid, payload = {}) {
     title: title || 'UsVault',
     body: body || '',
     type: type || 'info',
+    originUid,
+    originEmail,
+    source,
     read: false,
     createdAt: serverTimestamp(),
   })
+}
+
+export async function notifyLinkedPartner(uid, payload = {}) {
+  const sourceUid = toSafeString(uid)
+  if (!sourceUid) {
+    return false
+  }
+
+  try {
+    const sourceStatusSnapshot = await getDoc(doc(db, 'statuses', sourceUid))
+    if (!sourceStatusSnapshot.exists()) {
+      return false
+    }
+
+    const sourceStatus = sourceStatusSnapshot.data()
+    const partnerUid = toSafeString(sourceStatus?.partnerUid)
+
+    if (!partnerUid || partnerUid === sourceUid) {
+      return false
+    }
+
+    await saveInAppNotification(partnerUid, {
+      title: payload.title || 'UsVault',
+      body: payload.body || '',
+      type: payload.type || 'info',
+      source: payload.source || '',
+      originUid: sourceUid,
+      originEmail: sourceStatus?.email || '',
+    })
+
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function subscribeUserNotifications(uid, callback, maxItems = 60, onError) {

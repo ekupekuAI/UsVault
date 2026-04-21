@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
 import StatusBadge from '../components/StatusBadge'
 import { STATUS_OPTIONS } from '../constants/options'
-import { saveInAppNotification, updateUserStatus } from '../services/journalService'
+import { useSound } from '../context/SoundContext'
+import { notifyLinkedPartner, saveInAppNotification, updateUserStatus } from '../services/journalService'
 import SoftCard from '../components/ui/SoftCard'
 import { formatLastSeen } from '../utils/date'
 
 function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
   const [savingStatus, setSavingStatus] = useState('')
   const [errorText, setErrorText] = useState('')
+  const { playSuccess } = useSound()
   const partnerPrompt = useMemo(() => {
     if (!partnerStatusData.linked) {
       return 'Link your partner from the Profile tab using their partner code.'
@@ -27,7 +29,15 @@ function StatusPage({ user, myStatus, partnerStatusData, statusLoading }) {
         title: 'Status Updated',
         body: `You set your status to ${status}.`,
         type: 'status',
+        source: 'status_update',
       })
+      await notifyLinkedPartner(user.uid, {
+        title: 'Status Updated',
+        body: `Your partner set status to ${status}.`,
+        type: 'status',
+        source: 'status_update',
+      })
+      playSuccess()
     } catch {
       setErrorText('Unable to update status.')
     } finally {

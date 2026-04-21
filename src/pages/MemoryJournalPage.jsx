@@ -9,6 +9,7 @@ import { useSound } from '../context/SoundContext'
 import {
   deleteDailyEntry,
   formatDateKey,
+  notifyLinkedPartner,
   saveDailyEntry,
   saveInAppNotification,
   uploadEntryImage,
@@ -36,7 +37,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
   const [deletingDate, setDeletingDate] = useState('')
   const [deleteError, setDeleteError] = useState('')
 
-  const { playChime } = useSound()
+  const { playSuccess } = useSound()
 
   const todayKey = formatDateKey(new Date())
   const deferredEntries = useDeferredValue(entries)
@@ -112,6 +113,13 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         title: 'Memory Saved',
         body: 'Today\'s memory was added to your vault.',
         type: 'memory',
+        source: 'memory_save',
+      })
+      await notifyLinkedPartner(user.uid, {
+        title: 'New Memory Update',
+        body: 'Your partner added or updated today\'s memory.',
+        type: 'memory',
+        source: 'memory_save',
       })
 
       startTransition(() => {
@@ -119,7 +127,7 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         setSuccessText('Saved to your vault.')
         setSaveGlow(true)
       })
-      playChime()
+      playSuccess()
     } catch {
       setSaveError('Saving failed, try again.')
     } finally {
@@ -177,10 +185,18 @@ function MemoryJournalPage({ user, todayEntry, entries, entriesLoading, loadingT
         title: 'Memory Updated',
         body: `Updated memory for ${formatReadableDate(editingEntry.date)}.`,
         type: 'memory',
+        source: 'memory_edit',
+      })
+      await notifyLinkedPartner(user.uid, {
+        title: 'Memory Updated',
+        body: `Your partner updated memory for ${formatReadableDate(editingEntry.date)}.`,
+        type: 'memory',
+        source: 'memory_edit',
       })
 
       setEditingEntry(null)
       setSuccessText(`Memory updated for ${formatReadableDate(editingEntry.date)}.`)
+      playSuccess()
     } catch {
       setEditError('Saving failed, try again.')
     } finally {

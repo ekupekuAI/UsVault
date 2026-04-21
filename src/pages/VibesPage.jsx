@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import PrimaryButton from '../components/ui/PrimaryButton'
 import SoftCard from '../components/ui/SoftCard'
+import { useSound } from '../context/SoundContext'
 import {
   formatDateKey,
+  notifyLinkedPartner,
   saveDailyEntry,
   saveInAppNotification,
   updateUserGossipEntries,
@@ -34,6 +36,7 @@ function writeList(key, value) {
 function VibesPage({ user, myProfile, todayEntry }) {
   const MotionDiv = motion.div
   const [ready, setReady] = useState(false)
+  const { playSuccess } = useSound()
 
   const dateKey = useMemo(() => `usvault_date_ideas_${user.uid}`, [user.uid])
   const notesKey = useMemo(() => `usvault_quick_notes_${user.uid}`, [user.uid])
@@ -92,6 +95,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     }
     setDateIdeas((current) => [{ id: safeId(), text: idea }, ...current])
     setDateIdeaInput('')
+    playSuccess()
   }
 
   function rollDateDice() {
@@ -128,8 +132,16 @@ function VibesPage({ user, myProfile, todayEntry }) {
         title: 'Date Dice Saved',
         body: 'A rolled date idea was saved as memory.',
         type: 'vibes',
+        source: 'dice_memory_save',
+      })
+      await notifyLinkedPartner(user.uid, {
+        title: 'New Memory Update',
+        body: 'Your partner saved a date idea into today\'s memory.',
+        type: 'memory',
+        source: 'dice_memory_save',
       })
       setDiceSaveMessage('Saved to today\'s memory.')
+      playSuccess()
     } catch {
       setDiceSaveError('Saving failed, try again.')
     } finally {
@@ -152,6 +164,7 @@ function VibesPage({ user, myProfile, todayEntry }) {
     )
     setEditingIdeaId('')
     setEditingIdeaText('')
+    playSuccess()
   }
 
   function deleteDateIdea(id) {
@@ -167,29 +180,43 @@ function VibesPage({ user, myProfile, todayEntry }) {
     setGossipError('')
     try {
       await updateUserGossipEntries(user.uid, user.email, nextList)
+      return true
     } catch {
       setGossipError('Saving failed, try again.')
+      return false
     } finally {
       setGossipSaving(false)
     }
   }
 
-  function addGossip(event) {
+  async function addGossip(event) {
     event.preventDefault()
     const text = gossipInput.trim()
     if (!text) {
       return
     }
-    const nextList = [{ id: safeId(), text, tag: gossipTag, createdAt: Date.now() }, ...gossipEntries]
+    const savedTag = gossipTag
+    const nextList = [{ id: safeId(), text, tag: savedTag, createdAt: Date.now() }, ...gossipEntries]
     setGossipEntries(nextList)
     setGossipInput('')
     setGossipTag(GOSSIP_TAGS[0])
-    syncGossip(nextList)
-    saveInAppNotification(user.uid, {
+    const synced = await syncGossip(nextList)
+    if (!synced) {
+      return
+    }
+    await saveInAppNotification(user.uid, {
       title: 'Gossip Added',
-      body: `New gossip saved in ${gossipTag}.`,
+      body: `New gossip saved in ${savedTag}.`,
       type: 'vibes',
+      source: 'gossip_add',
     }).catch(() => {})
+    await notifyLinkedPartner(user.uid, {
+      title: 'New Gossip Added',
+      body: `Your partner added gossip in ${savedTag}.`,
+      type: 'gossip',
+      source: 'gossip_add',
+    })
+    playSuccess()
   }
 
   function deleteGossip(id) {

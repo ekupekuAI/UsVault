@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { MOOD_OPTIONS } from '../constants/options'
-import { saveInAppNotification, updateUserMood } from '../services/journalService'
+import { useSound } from '../context/SoundContext'
+import { notifyLinkedPartner, saveInAppNotification, updateUserMood } from '../services/journalService'
 import SoftCard from '../components/ui/SoftCard'
 import { formatReadableDate } from '../utils/date'
 
@@ -8,6 +9,7 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
   const [savingMood, setSavingMood] = useState('')
   const [errorText, setErrorText] = useState('')
   const [selectedMood, setSelectedMood] = useState('')
+  const { playSuccess } = useSound()
 
   async function setMood(mood) {
     setErrorText('')
@@ -20,7 +22,15 @@ function MoodTrackerPage({ user, todayEntry, entries }) {
         title: 'Mood Updated',
         body: `You selected ${mood} for today.`,
         type: 'mood',
+        source: 'mood_update',
       })
+      await notifyLinkedPartner(user.uid, {
+        title: 'Mood Updated',
+        body: `Your partner updated mood to ${mood}.`,
+        type: 'mood',
+        source: 'mood_update',
+      })
+      playSuccess()
     } catch {
       setErrorText('Unable to save mood right now.')
     } finally {

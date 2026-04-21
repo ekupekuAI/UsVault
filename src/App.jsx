@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from './components/AppShell'
 import InstallPrompt from './components/InstallPrompt'
 import SplashScreen from './components/SplashScreen'
 import SurpriseToast from './components/SurpriseToast'
 import { FIRST_OPEN_SPLASH_KEY, POST_SIGNUP_INTRO_KEY } from './constants/authFlow'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { SoundProvider } from './context/SoundContext'
+import { SoundProvider, useSound } from './context/SoundContext'
 import AuthPage from './pages/AuthPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import DashboardPage from './pages/DashboardPage'
@@ -28,6 +28,7 @@ import {
 } from './services/journalService'
 import {
   initializePushNotifications,
+  sendLocalNotification,
   startForegroundNotifications,
   stopForegroundNotifications,
 } from './services/pushService'
@@ -56,6 +57,7 @@ function normalizePublicPath(pathname = '/') {
 
 function AppContent() {
   const { user, loading, authError, isAdmin } = useAuth()
+  const { playChime, triggerHaptic } = useSound()
   const [bootSplashDone, setBootSplashDone] = useState(false)
   const [publicPath, setPublicPath] = useState(() => {
     if (typeof window === 'undefined') {
@@ -83,6 +85,8 @@ function AppContent() {
   const [dataError, setDataError] = useState('')
   const [surpriseMessage, setSurpriseMessage] = useState('')
   const [surpriseVisible, setSurpriseVisible] = useState(false)
+  const notificationsPrimedRef = useRef(false)
+  const knownNotificationIdsRef = useRef(new Set())
 
   const todayKey = formatDateKey(new Date())
 
@@ -185,6 +189,11 @@ function AppContent() {
   }, [todayKey, user])
 
   useEffect(() => {
+    notificationsPrimedRef.current = false
+    knownNotificationIdsRef.current = new Set()
+  }, [user?.uid])
+
+  useEffect(() => {
     function handlePopState() {
       setPublicPath(normalizePublicPath(window.location.pathname))
     }
@@ -274,6 +283,40 @@ function AppContent() {
     const timerId = window.setTimeout(() => setSurpriseVisible(false), 4200)
     return () => window.clearTimeout(timerId)
   }, [surpriseVisible])
+
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+
+    const knownIds = knownNotificationIdsRef.current
+
+    if (!notificationsPrimedRef.current) {
+      notifications.forEach((item) => {
+        if (item?.id) {
+          knownIds.add(item.id)
+        }
+      })
+      notificationsPrimedRef.current = true
+      return
+    }
+
+    notifications.forEach((item) => {
+      if (!item?.id || knownIds.has(item.id)) {
+        return
+      }
+
+      knownIds.add(item.id)
+      const fromPartner = Boolean(item.originUid) && item.originUid !== user.uid
+      if (!fromPartner) {
+        return
+      }
+
+      sendLocalNotification(item.title || 'UsVault', item.body || 'New update from your partner.')
+      playChime()
+      triggerHaptic([18, 24, 18])
+    })
+  }, [notifications, playChime, triggerHaptic, user])
 
   const myProfile = statusMap[user?.uid] || {
     uid: user?.uid,
@@ -407,7 +450,7 @@ function AppContent() {
 
       <InstallPrompt />
       <Suspense fallback={null}>
-        <DailyReminder user={user} />
+        <DailyReminder user={user} onShowNow={() => setActiveTab('journal')} />
       </Suspense>
 
       <AppShell tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>

@@ -8,7 +8,7 @@ const SNOOZE_UNTIL_KEY = 'usvault_reminder_snooze_until'
 const DAILY_PUSH_SENT_KEY = 'usvault_daily_push_sent'
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 
-function DailyReminder({ user }) {
+function DailyReminder({ user, onShowNow }) {
   const [visible, setVisible] = useState(false)
   const [message, setMessage] = useState(pickDailyReminderMessage())
 
@@ -56,8 +56,8 @@ function DailyReminder({ user }) {
 
   function showNow() {
     localStorage.removeItem(SNOOZE_UNTIL_KEY)
-    setMessage(pickDailyReminderMessage())
-    setVisible(true)
+    setVisible(false)
+    onShowNow?.()
   }
 
   if (!visible) {
