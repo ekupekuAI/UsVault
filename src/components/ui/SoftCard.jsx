@@ -11,7 +11,7 @@ function SoftCard({ title, subtitle, className = '', children }) {
       variants={cardEnter}
       transition={{ ...softSpring, duration: 0.42 }}
       whileHover={hoverLift}
-      className={`card-soft rounded-3xl p-4 ${className}`}
+      className={`card-soft rounded-3xl p-3 sm:p-4 ${className}`}
     >
       {title && (
         <header>

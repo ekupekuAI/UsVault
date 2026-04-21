@@ -27,7 +27,11 @@ function PrimaryButton({ className = '', children, onClick, ...props }) {
       whileHover={hoverLift}
       whileTap={tapPress}
       transition={quickSpring}
-      className={`relative min-h-[44px] overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-500 to-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(138,101,235,0.35)] transition disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+      style={{
+        backgroundImage: 'linear-gradient(90deg, var(--theme-primary), var(--theme-secondary), var(--theme-primary))',
+        boxShadow: '0 10px 22px var(--theme-glow)',
+      }}
+      className={`premium-button relative min-h-[44px] overflow-hidden rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
     >
       <span
         aria-hidden="true"

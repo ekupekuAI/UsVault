@@ -36,26 +36,27 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-500">UsVault</p>
-            <h1 className="mt-1 text-xl font-bold text-[var(--ink-title)]">Our Private Space</h1>
+            <h1 className="mt-1 text-lg font-bold text-[var(--ink-title)] sm:text-xl">Our Private Space</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <MotionButton
               type="button"
               onClick={toggleSound}
               whileHover={hoverLift}
               whileTap={tapPress}
               transition={softSpring}
-              className="rounded-full border border-violet-200 bg-white/75 px-3 py-1.5 text-xs font-semibold text-violet-700 backdrop-blur-sm"
+              className="rounded-full border border-violet-200 bg-white/75 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 backdrop-blur-sm sm:px-3 sm:text-xs"
               title="Toggle sound"
             >
-              {soundEnabled ? 'Sound On' : 'Sound Off'}
+              {soundEnabled ? 'Sound' : 'Muted'}
             </MotionButton>
-            <PrimaryButton type="button" onClick={logout} className="rounded-full px-3 py-1.5 text-xs">
+            <PrimaryButton type="button" onClick={logout} className="rounded-full px-2.5 py-1.5 text-[11px] sm:px-3 sm:text-xs">
               Logout
             </PrimaryButton>
           </div>
         </div>
         <p className="mt-2 truncate text-xs text-slate-500/90">{user?.email}</p>
+        <p className="mt-1 text-[11px] font-medium text-slate-500/85">UsVault v1.0 💜 Built with love</p>
       </header>
 
       <section className="mt-4 space-y-3 pb-20">
@@ -102,7 +103,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
                   >
                     <Icon
                       className={`h-5 w-5 transition duration-200 ${
-                        isActive ? 'scale-110 text-violet-700' : 'scale-100 text-slate-500'
+                        isActive ? 'nav-icon-live-active scale-110 text-violet-700' : 'nav-icon-live scale-100 text-slate-500'
                       }`}
                       strokeWidth={2.1}
                     />

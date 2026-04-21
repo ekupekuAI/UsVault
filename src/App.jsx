@@ -530,7 +530,7 @@ function AppContent() {
   }
 
   return (
-    <main className="relative z-10 mx-auto min-h-screen w-full max-w-md pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <main className="theme-shell relative z-10 mx-auto min-h-screen w-full max-w-md pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <SurpriseToast
         visible={surpriseVisible}
         message={surpriseMessage}
