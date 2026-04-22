@@ -6,16 +6,6 @@ import SurpriseToast from './components/SurpriseToast'
 import { FIRST_OPEN_SPLASH_KEY, POST_SIGNUP_INTRO_KEY } from './constants/authFlow'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SoundProvider, useSound } from './context/SoundContext'
-import AuthPage from './pages/AuthPage'
-import AdminDashboardPage from './pages/AdminDashboardPage'
-import DashboardPage from './pages/DashboardPage'
-import LandingPage from './pages/LandingPage'
-import MemoryJournalPage from './pages/MemoryJournalPage'
-import MoodTrackerPage from './pages/MoodTrackerPage'
-import NotificationCenterPage from './pages/NotificationCenterPage'
-import ProfilePage from './pages/ProfilePage'
-import StatusPage from './pages/StatusPage'
-import VibesPage from './pages/VibesPage'
 import {
   deleteAllUserNotifications,
   deleteUserNotification,
@@ -46,6 +36,16 @@ import { pickRandomSurpriseMessage } from './utils/emotional'
 
 const DailyReminder = lazy(() => import('./components/DailyReminder'))
 const FloatingRomanceDecor = lazy(() => import('./components/FloatingRomanceDecor'))
+const AuthPage = lazy(() => import('./pages/AuthPage'))
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const MemoryJournalPage = lazy(() => import('./pages/MemoryJournalPage'))
+const MoodTrackerPage = lazy(() => import('./pages/MoodTrackerPage'))
+const NotificationCenterPage = lazy(() => import('./pages/NotificationCenterPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const StatusPage = lazy(() => import('./pages/StatusPage'))
+const VibesPage = lazy(() => import('./pages/VibesPage'))
 const PUSH_TOKEN_UID_KEY = 'usvault_push_token_uid'
 const PUSH_TOKEN_VALUE_KEY = 'usvault_push_token_value'
 
@@ -588,13 +588,19 @@ function AppContent() {
   if (!user && !loading) {
     if (publicPath === '/auth') {
       return (
-        <AuthPage
-          authError={authError}
-          onBackToLanding={() => navigatePublic('/')}
-        />
+        <Suspense fallback={<SplashScreen visible mode="logoIntro" />}>
+          <AuthPage
+            authError={authError}
+            onBackToLanding={() => navigatePublic('/')}
+          />
+        </Suspense>
       )
     }
-    return <LandingPage onGetStarted={() => navigatePublic('/auth')} />
+    return (
+      <Suspense fallback={<SplashScreen visible mode="logoIntro" />}>
+        <LandingPage onGetStarted={() => navigatePublic('/auth')} />
+      </Suspense>
+    )
   }
 
   if (!bootSplashDone || loading) {
@@ -638,64 +644,66 @@ function AppContent() {
       </Suspense>
 
       <AppShell tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
-        {activeTab === 'dashboard' && (
-          <DashboardPage
-            user={user}
-            todayEntry={todayEntry}
-            partnerTodayEntry={partnerTodayEntry}
-            partnerMoodFx={partnerMoodFx}
-            entries={entries}
-            todayLoading={todayLoading}
-            statusLoading={statusLoading}
-            onThisDayEntry={onThisDayEntry}
-            myStatus={myStatus}
-            partnerStatus={partnerStatusData.status}
-            partnerLabel={partnerStatusData.label}
-            partnerLastSeen={partnerStatusData.lastSeen}
-            myProfile={myProfile}
-            partnerProfile={partnerStatusData}
-          />
-        )}
-        {activeTab === 'journal' && (
-          <MemoryJournalPage
-            user={user}
-            todayEntry={todayEntry}
-            entries={entries}
-            entriesLoading={entriesLoading}
-            loadingTitle={partnerStatusData.loadingTitleForPartner}
-            loadingCaption={partnerStatusData.loadingCaptionForPartner}
-          />
-        )}
-        {activeTab === 'mood' && (
-          <MoodTrackerPage user={user} todayEntry={todayEntry} entries={entries} />
-        )}
-        {activeTab === 'status' && (
-          <StatusPage
-            user={user}
-            myStatus={myStatus}
-            partnerStatusData={partnerStatusData}
-            statusLoading={statusLoading}
-          />
-        )}
-        {activeTab === 'notifications' && (
-          <NotificationCenterPage
-            notifications={notifications}
-            notificationsLoading={notificationsLoading}
-            unreadCount={unreadNotificationCount}
-            onMarkAllRead={handleMarkAllNotificationsRead}
-            onDeleteNotification={handleDeleteNotification}
-            onDeleteAllNotifications={handleDeleteAllNotifications}
-          />
-        )}
-        {activeTab === 'profile' && (
-          <ProfilePage
-            user={user}
-            myProfile={myProfile}
-            partnerStatusData={partnerStatusData}
-          />
-        )}
-        {activeTab === 'vibes' && <VibesPage user={user} myProfile={myProfile} todayEntry={todayEntry} />}
-        {activeTab === 'admin' && isAdmin && <AdminDashboardPage adminUser={user} />}
+        <Suspense fallback={null}>
+          {activeTab === 'dashboard' && (
+            <DashboardPage
+              user={user}
+              todayEntry={todayEntry}
+              partnerTodayEntry={partnerTodayEntry}
+              partnerMoodFx={partnerMoodFx}
+              entries={entries}
+              todayLoading={todayLoading}
+              statusLoading={statusLoading}
+              onThisDayEntry={onThisDayEntry}
+              myStatus={myStatus}
+              partnerStatus={partnerStatusData.status}
+              partnerLabel={partnerStatusData.label}
+              partnerLastSeen={partnerStatusData.lastSeen}
+              myProfile={myProfile}
+              partnerProfile={partnerStatusData}
+            />
+          )}
+          {activeTab === 'journal' && (
+            <MemoryJournalPage
+              user={user}
+              todayEntry={todayEntry}
+              entries={entries}
+              entriesLoading={entriesLoading}
+              loadingTitle={partnerStatusData.loadingTitleForPartner}
+              loadingCaption={partnerStatusData.loadingCaptionForPartner}
+            />
+          )}
+          {activeTab === 'mood' && (
+            <MoodTrackerPage user={user} todayEntry={todayEntry} entries={entries} />
+          )}
+          {activeTab === 'status' && (
+            <StatusPage
+              user={user}
+              myStatus={myStatus}
+              partnerStatusData={partnerStatusData}
+              statusLoading={statusLoading}
+            />
+          )}
+          {activeTab === 'notifications' && (
+            <NotificationCenterPage
+              notifications={notifications}
+              notificationsLoading={notificationsLoading}
+              unreadCount={unreadNotificationCount}
+              onMarkAllRead={handleMarkAllNotificationsRead}
+              onDeleteNotification={handleDeleteNotification}
+              onDeleteAllNotifications={handleDeleteAllNotifications}
+            />
+          )}
+          {activeTab === 'profile' && (
+            <ProfilePage
+              user={user}
+              myProfile={myProfile}
+              partnerStatusData={partnerStatusData}
+            />
+          )}
+          {activeTab === 'vibes' && <VibesPage user={user} myProfile={myProfile} todayEntry={todayEntry} />}
+          {activeTab === 'admin' && isAdmin && <AdminDashboardPage adminUser={user} />}
+        </Suspense>
       </AppShell>
     </main>
   )

@@ -58,6 +58,14 @@ npm install
 npm run dev
 ```
 
+### Quality checks
+
+```bash
+npm run lint
+npm run test
+npm run build
+```
+
 6. Install Cloud Functions dependencies:
 
 ```bash
@@ -105,6 +113,12 @@ cd ..
 ## Firebase rules
 
 Use the included `firestore.rules` and `storage.rules`, replacing admin emails with your real admin account(s) before deploying rules.
+
+Rules support admin by custom claim (`admin: true`) and by admin email allowlist fallback.
+
+## Production checklist
+
+See [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md) before release.
 
 ## Background push (app closed)
 

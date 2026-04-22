@@ -26,6 +26,9 @@ const SECTION_CONTENT = {
 }
 
 function LandingPage({ onGetStarted }) {
+  const MotionDiv = motion.div
+  const MotionSection = motion.section
+  const MotionArticle = motion.article
   const [activeSection, setActiveSection] = useState('')
 
   function openSection(sectionId) {
@@ -40,20 +43,20 @@ function LandingPage({ onGetStarted }) {
 
   return (
     <main className="landing-bg relative mx-auto flex min-h-screen w-full max-w-md items-center overflow-hidden px-4 app-surface">
-      <motion.div
+      <MotionDiv
         aria-hidden="true"
         animate={{ x: [0, 8, 0], y: [0, -6, 0] }}
         transition={{ duration: 12, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
         className="landing-blob pointer-events-none absolute -left-12 top-10 h-44 w-44 rounded-full bg-rose-300/40 blur-3xl"
       />
-      <motion.div
+      <MotionDiv
         aria-hidden="true"
         animate={{ x: [0, -10, 0], y: [0, 8, 0] }}
         transition={{ duration: 13, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
         className="landing-blob pointer-events-none absolute -right-10 bottom-20 h-48 w-48 rounded-full bg-violet-300/45 blur-3xl"
       />
 
-      <motion.section
+      <MotionSection
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
@@ -62,7 +65,7 @@ function LandingPage({ onGetStarted }) {
         <div className="landing-glass-inner rounded-[22px] p-5">
           <header>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-700">UsVault</p>
-            <p className="mt-1 text-sm font-medium text-violet-600">A space for us 💜</p>
+            <p className="mt-1 text-sm font-medium text-violet-600">A space for us {'\u{1F49C}'}</p>
           </header>
 
           <div className="mt-8">
@@ -80,7 +83,7 @@ function LandingPage({ onGetStarted }) {
             onClick={onGetStarted}
             className="landing-cta mt-6 w-full shadow-[0_14px_30px_rgba(124,89,210,0.35)]"
           >
-            Get Started 💜
+            Get Started {'\u{1F49C}'}
           </PrimaryButton>
 
           <button
@@ -103,18 +106,18 @@ function LandingPage({ onGetStarted }) {
             </button>
           </div>
         </div>
-      </motion.section>
+      </MotionSection>
 
       <AnimatePresence>
         {currentSection && (
-          <motion.div
+          <MotionDiv
             className="fixed inset-0 z-40 flex items-end justify-center bg-black/20 p-4 sm:items-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeSection}
           >
-            <motion.article
+            <MotionArticle
               initial={{ opacity: 0, y: 18, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -145,8 +148,8 @@ function LandingPage({ onGetStarted }) {
               >
                 Close
               </button>
-            </motion.article>
-          </motion.div>
+            </MotionArticle>
+          </MotionDiv>
         )}
       </AnimatePresence>
     </main>

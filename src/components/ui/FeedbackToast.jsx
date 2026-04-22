@@ -7,6 +7,8 @@ function FeedbackToast({
   onAction,
   onClose,
 }) {
+  const MotionDiv = motion.div
+
   if (!message) {
     return null
   }
@@ -14,7 +16,7 @@ function FeedbackToast({
   return (
     <AnimatePresence>
       {visible && (
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, y: 14, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -42,7 +44,7 @@ function FeedbackToast({
               </button>
             </div>
           </div>
-        </motion.div>
+        </MotionDiv>
       )}
     </AnimatePresence>
   )
