@@ -242,10 +242,12 @@ export function getHighlights(memories = []) {
       mostActiveDay: null,
       longestEntry: null,
       totalMemories: 0,
+      daysWithImages: [],
     }
   }
 
   const dayCounts = new Map()
+  const imageDays = new Set()
   let longestEntry = null
   let longestLength = -1
 
@@ -253,6 +255,9 @@ export function getHighlights(memories = []) {
     const memory = normalizeMemory(item)
     const dayName = toDate(memory.date)?.toLocaleDateString(undefined, { weekday: 'long' }) || 'Unknown'
     dayCounts.set(dayName, (dayCounts.get(dayName) || 0) + 1)
+    if (memory.image) {
+      imageDays.add(memory.date)
+    }
 
     const length = memory.text.length
     if (length > longestLength) {
@@ -268,6 +273,7 @@ export function getHighlights(memories = []) {
     mostActiveDay,
     longestEntry,
     totalMemories: list.length,
+    daysWithImages: [...imageDays].sort(),
   }
 }
 
