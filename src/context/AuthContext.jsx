@@ -149,7 +149,7 @@ export function AuthProvider({ children }) {
 
       await updateProfile(userCredential.user, {
         displayName: profileResult.displayName,
-        photoURL: profileResult.photoURL || null,
+        ...(profileResult.photoURL ? { photoURL: profileResult.photoURL } : {}),
       }).catch(() => {})
 
       return true
