@@ -58,7 +58,7 @@ function AppShell({ tabs, activeTab, onTabChange, children }) {
           </div>
         </div>
         <p className="mt-2 truncate text-xs text-slate-500/90">{user?.email}</p>
-        <p className="mt-1 text-[11px] font-medium text-slate-500/85">UsVault v1.0 ?? Built with love</p>
+        <p className="mt-1 text-[11px] font-medium text-slate-500/85">UsVault v1.1 &middot; Built with love</p>
       </header>
 
       <section className="mt-4 space-y-3 pb-28">

@@ -76,6 +76,10 @@ export function SoundProvider({ children }) {
       if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') {
         return
       }
+      // Browsers block (and log an error for) vibrate() before the first user interaction.
+      if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+        return
+      }
       navigator.vibrate(pattern)
     },
     [soundEnabled],

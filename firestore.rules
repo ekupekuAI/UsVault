@@ -5,14 +5,36 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function controlPath(uid) {
+      return /databases/$(database)/documents/user_controls/$(uid);
+    }
+
+    function statusPath(uid) {
+      return /databases/$(database)/documents/statuses/$(uid);
+    }
+
+    // Bans are enforced here too, not only in the UI, so a restricted account
+    // cannot keep using the database directly.
+    function notBlocked() {
+      return !exists(controlPath(request.auth.uid)) || (
+        get(controlPath(request.auth.uid)).data.get('banned', false) != true &&
+        get(controlPath(request.auth.uid)).data.get('canUseApp', true) != false
+      );
+    }
+
+    function activeUser() {
+      return signedIn() && notBlocked();
+    }
+
     function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
+      return activeUser() && request.auth.uid == userId;
     }
 
     function isAdminByClaim() {
       return signedIn() && request.auth.token.admin == true;
     }
 
+    // Keep in sync with VITE_ADMIN_EMAILS. Prefer the `admin` custom claim in production.
     function isAdminByEmail() {
       return signedIn() && request.auth.token.email in [
         'gekansh2008@gmail.com'
@@ -24,22 +46,29 @@ service cloud.firestore {
     }
 
     function isMutuallyLinkedWith(userId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/statuses/$(request.auth.uid)) &&
-        exists(/databases/$(database)/documents/statuses/$(userId)) &&
-        get(/databases/$(database)/documents/statuses/$(request.auth.uid)).data.partnerUid == userId &&
-        get(/databases/$(database)/documents/statuses/$(userId)).data.partnerUid == request.auth.uid;
+      return activeUser() &&
+        request.auth.uid != userId &&
+        exists(statusPath(request.auth.uid)) &&
+        exists(statusPath(userId)) &&
+        get(statusPath(request.auth.uid)).data.get('partnerUid', '') == userId &&
+        get(statusPath(userId)).data.get('partnerUid', '') == request.auth.uid;
     }
 
+    function optionalString(data, field, maxSize) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxSize);
+    }
+
+    // Fields are optional so partial saves (e.g. mood only) are accepted.
     function isValidEntryPayload(entryId) {
-      return request.resource.data.id == entryId &&
-        request.resource.data.date == entryId &&
-        request.resource.data.text is string &&
-        request.resource.data.text.size() <= 2500 &&
-        request.resource.data.image is string &&
-        request.resource.data.image.size() <= 2048 &&
-        request.resource.data.imageUrl is string &&
-        request.resource.data.imageUrl.size() <= 2048;
+      let data = request.resource.data;
+      return data.id == entryId &&
+        data.date == entryId &&
+        optionalString(data, 'text', 2500) &&
+        optionalString(data, 'image', 2048) &&
+        optionalString(data, 'imageUrl', 2048) &&
+        optionalString(data, 'imagePath', 512) &&
+        optionalString(data, 'mood', 32) &&
+        optionalString(data, 'sourceTag', 120);
     }
 
     function isValidNotificationPayload() {
@@ -58,9 +87,32 @@ service cloud.firestore {
         request.resource.data.read is bool;
     }
 
-    function isValidPushTokenPayload(userId) {
-      return request.resource.data.uid == userId &&
-        (!('tokens' in request.resource.data) || request.resource.data.tokens is list);
+    function isValidStatusPayload(userId) {
+      let data = request.resource.data;
+      return data.uid == userId &&
+        optionalString(data, 'partnerUid', 128) &&
+        optionalString(data, 'partnerCode', 40) &&
+        optionalString(data, 'linkCode', 40) &&
+        (!('gossipEntries' in data) || (data.gossipEntries is list && data.gossipEntries.size() <= 40));
+    }
+
+    // Partner linking: the person entering a code writes their own status doc
+    // (partnerUid + linkCode) and, in the same batch, sets ONLY partnerUid on the
+    // code owner's doc. Allowed only when the code really belongs to that user
+    // and they are not linked to someone else.
+    function isPartnerLinkClaim(userId) {
+      let me = request.auth.uid;
+      let myAfter = getAfter(statusPath(me)).data;
+      let code = myAfter.get('linkCode', '');
+      return activeUser() &&
+        me != userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partnerUid', 'updatedAt']) &&
+        request.resource.data.partnerUid == me &&
+        resource.data.get('partnerUid', '') in ['', me] &&
+        myAfter.get('partnerUid', '') == userId &&
+        code is string &&
+        code.size() >= 8 &&
+        get(/databases/$(database)/documents/partner_codes/$(code)).data.uid == userId;
     }
 
     match /users/{userId}/entries/{entryId} {
@@ -75,24 +127,47 @@ service cloud.firestore {
       allow update, delete: if isOwner(userId) || isAdmin();
     }
 
+    // Profile + status + shared personalization. Visible only to the owner, the
+    // mutually linked partner and admins (previously any signed-in user could
+    // list every profile, email, gossip entry and partner code).
     match /statuses/{userId} {
-      allow read: if signedIn();
-      allow create, update: if isOwner(userId) || isAdmin();
+      allow get: if isOwner(userId) || isAdmin() || isMutuallyLinkedWith(userId);
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidStatusPayload(userId);
+      allow update: if (isOwner(userId) && isValidStatusPayload(userId)) ||
+        isAdmin() ||
+        isPartnerLinkClaim(userId);
       allow delete: if isAdmin();
     }
 
+    // Random, unguessable partner codes -> uid. Single-document reads only.
+    match /partner_codes/{code} {
+      allow get: if activeUser();
+      allow list: if isAdmin();
+      allow create: if activeUser() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['uid', 'createdAt']) &&
+        code.size() >= 8 && code.size() <= 40;
+      allow update: if false;
+      allow delete: if (activeUser() && resource.data.uid == request.auth.uid) || isAdmin();
+    }
+
     match /user_controls/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) &&
+      // Owners can read their own control doc even when banned, so the app can
+      // show the restriction reason.
+      allow read: if (signedIn() && request.auth.uid == userId) || isAdmin();
+      allow create: if (signedIn() && request.auth.uid == userId &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.banned == false &&
-        request.resource.data.canUseApp == true;
-      allow create, update, delete: if isAdmin();
+        request.resource.data.canUseApp == true) || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /push_tokens/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if (isOwner(userId) || isAdmin()) && isValidPushTokenPayload(userId);
+      allow write: if (isOwner(userId) || isAdmin()) &&
+        request.resource.data.uid == userId &&
+        (!('tokens' in request.resource.data) || request.resource.data.tokens is list);
     }
   }
 }

@@ -9,5 +9,14 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "emulators": {
+    "singleProjectMode": true,
+    "auth": { "port": 6209 },
+    "firestore": { "port": 62091, "websocketPort": 62095 },
+    "storage": { "port": 62092 },
+    "hub": { "port": 62093 },
+    "logging": { "port": 62094 },
+    "ui": { "enabled": false }
   }
 }

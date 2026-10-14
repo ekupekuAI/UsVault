@@ -16,7 +16,7 @@ import {
   savePushToken,
   subscribeUserNotifications,
   subscribeEntryByDate,
-  subscribeStatusMap,
+  subscribeStatusDoc,
   subscribeUserEntries,
 } from './services/journalService'
 import {
@@ -175,6 +175,7 @@ function AppContent() {
       stopForegroundNotifications()
       setNotifications([])
       setNotificationsLoading(false)
+      setStatusMap({})
       return undefined
     }
 
@@ -209,9 +210,10 @@ function AppContent() {
         setDataError('Could not load memories right now.')
       },
     )
-    const unsubscribeStatuses = subscribeStatusMap(
+    const unsubscribeStatuses = subscribeStatusDoc(
+      user.uid,
       (data) => {
-        setStatusMap(data)
+        setStatusMap((current) => ({ ...current, [user.uid]: data }))
         setStatusLoading(false)
       },
       () => {
@@ -469,10 +471,13 @@ function AppContent() {
     partnerMoodInitializedRef.current = false
     partnerMoodPreviousRef.current = ''
 
-    return subscribeEntryByDate(
+    // The partner's journal stays private (rules never allowed reading it, so this
+    // never worked); today's mood is shared through their status doc instead.
+    return subscribeStatusDoc(
       myPartnerUid,
-      todayKey,
-      (entry) => {
+      (partnerDoc) => {
+        setStatusMap((current) => ({ ...current, [myPartnerUid]: partnerDoc }))
+        const entry = partnerDoc?.moodDate === todayKey ? { mood: partnerDoc.mood || '' } : null
         setPartnerTodayEntry(entry)
         const nextMood = String(entry?.mood || '')
 

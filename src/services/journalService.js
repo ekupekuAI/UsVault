@@ -11,6 +11,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   where,
@@ -60,11 +61,20 @@ function normalizePartnerCode(rawCode = '') {
     .replace(/[^A-Z0-9-]/g, '')
 }
 
-function createPartnerCode(uid = '') {
-  const clean = String(uid || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
-  const first = clean.slice(0, 6).padEnd(6, 'X')
-  const last = clean.slice(-6).padStart(6, 'X')
-  return `UV-${first}${last}`
+const PARTNER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const PARTNER_CODE_VERSION = 2
+
+// Random code (~60 bits). The old code was derived from the uid and every profile was
+// readable by any signed-in user, so v1 codes are treated as public and get rotated.
+function createPartnerCode() {
+  const bytes = new Uint8Array(12)
+  globalThis.crypto.getRandomValues(bytes)
+  const chars = Array.from(bytes, (byte) => PARTNER_CODE_ALPHABET[byte % PARTNER_CODE_ALPHABET.length])
+  return `UV-${chars.slice(0, 6).join('')}-${chars.slice(6).join('')}`
+}
+
+function partnerCodeRef(code) {
+  return doc(db, 'partner_codes', code)
 }
 
 function toSafeString(value = '') {
@@ -104,20 +114,38 @@ export function getBlockedMessage(accessControl = null) {
   return 'Your account access has been restricted by admin.'
 }
 
-export async function saveDailyEntry(uid, dateKey, payload) {
-  const nextText = String(payload?.text || '')
-  const nextImage = String(payload?.image || payload?.imageUrl || '')
+const ENTRY_STRING_FIELDS = ['text', 'image', 'imageUrl', 'imagePath', 'mood', 'sourceTag']
 
+// Only includes the fields that were passed in. The previous version always wrote
+// text/image as '' which wiped today's memory whenever the mood was updated.
+export function buildEntryPatch(dateKey, payload = {}) {
+  const patch = {
+    id: dateKey,
+    date: dateKey,
+    monthDay: dateKey.slice(5),
+  }
+
+  ENTRY_STRING_FIELDS.forEach((field) => {
+    if (payload?.[field] !== undefined && payload?.[field] !== null) {
+      patch[field] = String(payload[field])
+    }
+  })
+
+  if (patch.imageUrl !== undefined && patch.image === undefined) {
+    patch.image = patch.imageUrl
+  }
+  if (payload?.moodTimestamp !== undefined) {
+    patch.moodTimestamp = Number(payload.moodTimestamp) || Date.now()
+  }
+
+  return patch
+}
+
+export async function saveDailyEntry(uid, dateKey, payload) {
   await setDoc(
     entryRef(uid, dateKey),
     {
-      ...payload,
-      id: String(payload?.id || dateKey),
-      text: nextText,
-      image: nextImage,
-      imageUrl: String(payload?.imageUrl || nextImage),
-      date: dateKey,
-      monthDay: dateKey.slice(5),
+      ...buildEntryPatch(dateKey, payload),
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -176,6 +204,12 @@ export async function deleteDailyEntry(uid, dateKey, imagePath = '') {
 export async function updateUserMood(uid, mood) {
   const dateKey = formatDateKey(new Date())
   await saveDailyEntry(uid, dateKey, { mood, moodTimestamp: Date.now() })
+  // Journal entries stay private; the partner sees today's mood through the shared status doc.
+  await setDoc(
+    doc(db, 'statuses', uid),
+    { uid, mood: String(mood || ''), moodDate: dateKey, moodUpdatedAt: serverTimestamp() },
+    { merge: true },
+  )
 }
 
 export async function updateUserStatus(uid, email, status) {
@@ -191,36 +225,65 @@ export async function updateUserStatus(uid, email, status) {
   )
 }
 
-export async function ensureStatusDocument(uid, email) {
+async function claimNewPartnerCode(uid) {
+  let lastError = null
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const code = createPartnerCode()
+    try {
+      // Rules only allow creating codes that do not exist yet, so a collision fails here.
+      await setDoc(partnerCodeRef(code), { uid, createdAt: serverTimestamp() })
+      return code
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
+const statusEnsureRequests = new Map()
+
+export function ensureStatusDocument(uid, email) {
+  if (!statusEnsureRequests.has(uid)) {
+    const request = ensureStatusDocumentOnce(uid, email).finally(() => {
+      statusEnsureRequests.delete(uid)
+    })
+    statusEnsureRequests.set(uid, request)
+  }
+  return statusEnsureRequests.get(uid)
+}
+
+async function ensureStatusDocumentOnce(uid, email) {
   const statusRef = doc(db, 'statuses', uid)
   const statusSnapshot = await getDoc(statusRef)
-  const defaultProfile = {
-    uid,
-    email,
-    status: 'Free',
-    displayName: deriveDisplayName(email),
-    partnerName: 'Love',
-    greetingTemplate: '',
-    missMeMessage: '',
-    gossipEntries: [],
-    partnerCode: createPartnerCode(uid),
-    partnerUid: '',
-    photoURL: '',
-    photoPath: '',
-    onboardingDone: false,
-    loadingTitleForPartner: '',
-    loadingCaptionForPartner: '',
-    updatedAt: serverTimestamp(),
-  }
+  const initialData = statusSnapshot.exists() ? statusSnapshot.data() : {}
+  const previousCode = normalizePartnerCode(initialData?.partnerCode)
+  const newCode =
+    initialData?.partnerCodeVersion !== PARTNER_CODE_VERSION || !previousCode ? await claimNewPartnerCode(uid) : ''
 
-  if (!statusSnapshot.exists()) {
-    await setDoc(statusRef, defaultProfile)
-    return
-  }
+  // Transaction so defaults never overwrite a name/photo saved by signup at the same moment.
+  await runTransaction(db, async (transaction) => {
+    const current = await transaction.get(statusRef)
+    const patch = buildStatusDefaults(current.exists() ? current.data() : {}, current.exists(), email)
+    if (newCode) {
+      patch.partnerCode = newCode
+      patch.partnerCodeVersion = PARTNER_CODE_VERSION
+    }
+    if (Object.keys(patch).length > 0) {
+      transaction.set(statusRef, { uid, email, ...patch, updatedAt: serverTimestamp() }, { merge: true })
+    }
+  })
 
-  const data = statusSnapshot.data()
+  if (newCode && previousCode && previousCode !== newCode) {
+    await deleteDoc(partnerCodeRef(previousCode)).catch(() => {})
+  }
+}
+
+function buildStatusDefaults(data, exists, email) {
   const patch = {}
 
+  if (!exists) {
+    patch.status = 'Free'
+  }
   if (!data?.displayName) {
     patch.displayName = deriveDisplayName(email)
   }
@@ -235,9 +298,6 @@ export async function ensureStatusDocument(uid, email) {
   }
   if (!Array.isArray(data?.gossipEntries)) {
     patch.gossipEntries = []
-  }
-  if (typeof data?.partnerCode !== 'string' || !normalizePartnerCode(data.partnerCode)) {
-    patch.partnerCode = createPartnerCode(uid)
   }
   if (typeof data?.partnerUid !== 'string') {
     patch.partnerUid = ''
@@ -258,30 +318,52 @@ export async function ensureStatusDocument(uid, email) {
     patch.loadingCaptionForPartner = ''
   }
 
-  if (Object.keys(patch).length > 0) {
-    await setDoc(statusRef, patch, { merge: true })
-  }
+  return patch
 }
 
-export async function ensureUserAccessControl(uid, email) {
+const accessControlRequests = new Map()
+
+async function loadOrCreateAccessControl(uid, email) {
   const controlDocumentRef = userControlRef(uid)
   const snapshot = await getDoc(controlDocumentRef)
 
-  if (!snapshot.exists()) {
-    const initialData = {
-      uid,
-      email: String(email || '').trim().toLowerCase(),
-      canUseApp: true,
-      banned: false,
-      bannedReason: '',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }
-    await setDoc(controlDocumentRef, initialData, { merge: false })
-    return normalizeAccessControl(initialData)
+  if (snapshot.exists()) {
+    return normalizeAccessControl(snapshot.data())
   }
 
-  return normalizeAccessControl(snapshot.data())
+  const initialData = {
+    uid,
+    email: String(email || '').trim().toLowerCase(),
+    canUseApp: true,
+    banned: false,
+    bannedReason: '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }
+
+  try {
+    await setDoc(controlDocumentRef, initialData, { merge: false })
+    return normalizeAccessControl(initialData)
+  } catch (error) {
+    // Another tab may have created it first; owners cannot update it, so re-read instead.
+    const retry = await getDoc(controlDocumentRef)
+    if (retry.exists()) {
+      return normalizeAccessControl(retry.data())
+    }
+    throw error
+  }
+}
+
+// De-duplicated: signup and the auth listener call this at the same time, and the second
+// create used to fail as a forbidden update, signing brand-new users straight back out.
+export function ensureUserAccessControl(uid, email) {
+  if (!accessControlRequests.has(uid)) {
+    const request = loadOrCreateAccessControl(uid, email).finally(() => {
+      accessControlRequests.delete(uid)
+    })
+    accessControlRequests.set(uid, request)
+  }
+  return accessControlRequests.get(uid)
 }
 
 export async function savePushToken(uid, token, userAgent = '') {
@@ -417,6 +499,11 @@ export async function deleteUserDataByAdmin(adminUser, targetUser) {
     await deleteDoc(item.ref)
   }
 
+  const statusSnapshot = await getDoc(doc(db, 'statuses', targetUid)).catch(() => null)
+  const targetCode = normalizePartnerCode(statusSnapshot?.data()?.partnerCode)
+  if (targetCode) {
+    await deleteDoc(partnerCodeRef(targetCode)).catch(() => {})
+  }
   await deleteDoc(doc(db, 'statuses', targetUid)).catch(() => {})
 
   await setDoc(
@@ -438,17 +525,13 @@ export async function deleteUserDataByAdmin(adminUser, targetUser) {
   )
 }
 
-export function subscribeStatusMap(callback, onError) {
+// Statuses are private to their owner and linked partner, so listen per document
+// instead of to the whole collection (only admins may list it).
+export function subscribeStatusDoc(uid, callback, onError) {
   return onSnapshot(
-    collection(db, 'statuses'),
+    doc(db, 'statuses', uid),
     (snapshot) => {
-      const map = {}
-
-      for (const item of snapshot.docs) {
-        map[item.id] = item.data()
-      }
-
-      callback(map)
+      callback(snapshot.exists() ? snapshot.data() : null)
     },
     (error) => {
       onError?.(error)
@@ -646,7 +729,6 @@ export async function saveUserProfile(uid, email, profilePayload = {}) {
       email,
       displayName,
       partnerName,
-      partnerCode: createPartnerCode(uid),
       photoURL,
       photoPath,
       onboardingDone: true,
@@ -694,7 +776,7 @@ export async function updateUserProfileDetails(uid, email, payload = {}) {
 
 export async function linkPartnerByCode(uid, email, partnerCode) {
   const normalizedCode = normalizePartnerCode(partnerCode)
-  if (!normalizedCode) {
+  if (normalizedCode.length < 8) {
     throw new Error('invalid-code')
   }
 
@@ -706,32 +788,25 @@ export async function linkPartnerByCode(uid, email, partnerCode) {
 
   const myData = mySnapshot.data()
   const myExistingPartnerUid = String(myData?.partnerUid || '')
-
-  const partnerQuery = query(
-    collection(db, 'statuses'),
-    where('partnerCode', '==', normalizedCode),
-    limit(1),
-  )
-  const partnerSnapshot = await getDocs(partnerQuery)
-  if (partnerSnapshot.empty) {
-    throw new Error('code-not-found')
+  if (normalizePartnerCode(myData?.partnerCode) === normalizedCode) {
+    throw new Error('self-link')
   }
 
-  const partnerDoc = partnerSnapshot.docs[0]
-  const partnerUid = partnerDoc.id
-  const partnerData = partnerDoc.data()
-  const partnerExistingUid = String(partnerData?.partnerUid || '')
-
+  // Codes resolve through partner_codes/{code}; profiles themselves are not listable.
+  const codeSnapshot = await getDoc(partnerCodeRef(normalizedCode))
+  const partnerUid = codeSnapshot.exists() ? String(codeSnapshot.data()?.uid || '') : ''
+  if (!partnerUid) {
+    throw new Error('code-not-found')
+  }
   if (partnerUid === uid) {
     throw new Error('self-link')
   }
   if (myExistingPartnerUid && myExistingPartnerUid !== partnerUid) {
     throw new Error('already-linked')
   }
-  if (partnerExistingUid && partnerExistingUid !== uid) {
-    throw new Error('partner-already-linked')
-  }
 
+  // The previous version wrote the partner's doc with fields the rules never allowed,
+  // so linking always failed. Rules now accept exactly this batch (see isPartnerLinkClaim).
   const batch = writeBatch(db)
   batch.set(
     myRef,
@@ -739,25 +814,32 @@ export async function linkPartnerByCode(uid, email, partnerCode) {
       uid,
       email,
       partnerUid,
+      linkCode: normalizedCode,
       updatedAt: serverTimestamp(),
     },
     { merge: true },
   )
-  batch.set(
-    partnerDoc.ref,
-    {
-      uid: partnerUid,
-      email: partnerData?.email || '',
-      partnerUid: uid,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  )
-  await batch.commit()
+  batch.update(doc(db, 'statuses', partnerUid), {
+    partnerUid: uid,
+    updatedAt: serverTimestamp(),
+  })
+
+  try {
+    await batch.commit()
+  } catch (error) {
+    // Rules reject the batch when the code owner is already linked to someone else.
+    if (error?.code === 'permission-denied' || error?.code === 'not-found') {
+      throw new Error('partner-already-linked')
+    }
+    throw error
+  }
+
+  const partnerSnapshot = await getDoc(doc(db, 'statuses', partnerUid)).catch(() => null)
+  const partnerData = partnerSnapshot?.data() || {}
 
   return {
     partnerUid,
-    partnerLabel: partnerData?.displayName || partnerData?.email || 'Partner',
+    partnerLabel: partnerData.displayName || partnerData.email || 'Partner',
   }
 }
 

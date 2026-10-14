@@ -2,18 +2,24 @@
 importScripts('https://www.gstatic.com/firebasejs/11.8.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/11.8.0/firebase-messaging-compat.js')
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyD3MUGGlf8v3TH2go9OCuNOrhJr1EY4r1Q',
-  authDomain: 'usvault-78741.firebaseapp.com',
-  projectId: 'usvault-78741',
-  storageBucket: 'usvault-78741.firebasestorage.app',
-  messagingSenderId: '97973712303',
-  appId: '1:97973712303:web:caea9a29b01c861aa22b5a',
-})
+// The app registers this worker as /firebase-messaging-sw.js?apiKey=...&projectId=...
+// so the Firebase web config comes from the build's env vars instead of being hardcoded.
+const params = new URL(self.location.href).searchParams
+const config = {
+  apiKey: params.get('apiKey') || '',
+  authDomain: params.get('authDomain') || '',
+  projectId: params.get('projectId') || '',
+  storageBucket: params.get('storageBucket') || '',
+  messagingSenderId: params.get('messagingSenderId') || '',
+  appId: params.get('appId') || '',
+}
 
-const messaging = firebase.messaging()
+const messaging =
+  config.apiKey && config.projectId && config.messagingSenderId && config.appId
+    ? (firebase.initializeApp(config), firebase.messaging())
+    : null
 
-messaging.onBackgroundMessage((payload) => {
+messaging?.onBackgroundMessage((payload) => {
   const title = payload?.notification?.title || 'UsVault'
   const options = {
     body: payload?.notification?.body || 'Tell me about your day \u{1F4AD}',

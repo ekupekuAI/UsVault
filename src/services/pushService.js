@@ -1,5 +1,5 @@
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging'
-import { app } from '../firebase/config'
+import { app, firebaseConfig, useEmulators } from '../firebase/config'
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY
 const FCM_SW_PATH = '/firebase-messaging-sw.js'
@@ -9,6 +9,10 @@ let foregroundUnsubscribe = null
 
 async function getMessagingInstance() {
   if (typeof window === 'undefined') {
+    return null
+  }
+
+  if (!app || useEmulators) {
     return null
   }
 
@@ -61,10 +65,16 @@ async function registerMessagingServiceWorker() {
     return null
   }
 
-  return navigator.serviceWorker.register(FCM_SW_PATH, { scope: FCM_SW_SCOPE })
+  // The worker is a static file, so pass it the Firebase web config via its URL.
+  const params = new URLSearchParams(firebaseConfig)
+  return navigator.serviceWorker.register(`${FCM_SW_PATH}?${params.toString()}`, { scope: FCM_SW_SCOPE })
 }
 
 export async function initializePushNotifications() {
+  if (!app || useEmulators) {
+    return { permission: 'unsupported', token: null }
+  }
+
   const permission = await requestNotificationPermission()
 
   if (permission !== 'granted') {
@@ -87,12 +97,6 @@ export async function initializePushNotifications() {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: serviceWorkerRegistration || undefined,
     })
-
-    if (token) {
-      console.log('FCM token:', token)
-    } else {
-      console.log('FCM token unavailable.')
-    }
 
     return { permission, token: token || null }
   } catch (error) {

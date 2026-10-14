@@ -58,13 +58,48 @@ npm install
 npm run dev
 ```
 
+If the Firebase variables are missing, the app shows a "Firebase is not configured" screen listing what to fill in.
+
+### Environment variables
+
+| Variable | Required | Where to get it |
+| --- | --- | --- |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | Yes | Firebase Console → Project settings → General → Your apps → Web app config |
+| `VITE_FIREBASE_VAPID_KEY` | For push | Firebase Console → Project settings → Cloud Messaging → Web Push certificates |
+| `VITE_ADMIN_EMAILS` | Optional | Your admin email(s); also update the list in `firestore.rules` / `storage.rules` |
+| `VITE_STRICT_COUPLE_MODE`, `VITE_ALLOWED_USERS` | Optional | Restrict signup to listed emails |
+
+### Run locally without a Firebase project
+
+Requires Java 11+. Uses the Firebase Emulator Suite (auth 6209, firestore 62091, storage 62092):
+
+```bash
+npm run emulators   # terminal 1
+npm run dev:local   # terminal 2
+```
+
 ### Quality checks
 
 ```bash
 npm run lint
 npm run test
+npm run test:rules   # Firestore security-rules tests (starts the emulator, needs Java)
 npm run build
 ```
+
+## What changed in v1.1
+
+| Before | After |
+| --- | --- |
+| Blank page when `.env` was missing (`auth/invalid-api-key` at import) | Clear setup screen listing missing variables |
+| Setting today's mood wiped today's memory text and photo | Entries are saved field-by-field; nothing is overwritten |
+| Partner linking always failed (rules rejected the write to the partner's profile) | Linking works via `partner_codes/{code}`; rules only allow setting `partnerUid` when the code really belongs to that user |
+| Any signed-in user could list every profile (emails, partner codes, gossip, messages) | Profiles readable only by the owner, the linked partner and admins; partner codes are random and rotated |
+| Partner's mood never showed (journal was owner-only) | Today's mood is shared through the status doc; journals stay private |
+| Bans enforced only in the UI | Bans also enforced in Firestore rules |
+| New signups could be signed straight out (duplicate access-control write race) | Access-control and profile setup de-duplicated / transactional |
+| Firebase web config hardcoded in `public/firebase-messaging-sw.js`; FCM token logged to console | Worker gets config from env via its URL; token no longer logged |
+| Generic auth errors, journal text over 2500 chars silently failed, `??` in header | Specific auth messages, 2500-char limit in the editor, fixed header text |
 
 6. Install Cloud Functions dependencies:
 
@@ -115,6 +150,8 @@ cd ..
 Use the included `firestore.rules` and `storage.rules`, replacing admin emails with your real admin account(s) before deploying rules.
 
 Rules support admin by custom claim (`admin: true`) and by admin email allowlist fallback.
+
+**v1.1 needs the updated rules deployed** (`npm run firebase:deploy:rules`): partner linking, partner mood and the profile privacy fix depend on them. Existing users get a new random partner code on their next login.
 
 ## Production checklist
 

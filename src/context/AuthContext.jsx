@@ -20,6 +20,21 @@ import {
 
 const AuthContext = createContext(null)
 
+const AUTH_ERROR_MESSAGES = {
+  'auth/invalid-credential': 'Email or password is incorrect.',
+  'auth/wrong-password': 'Email or password is incorrect.',
+  'auth/user-not-found': 'No account found with that email.',
+  'auth/invalid-email': 'That email address looks invalid.',
+  'auth/email-already-in-use': 'An account with this email already exists. Try logging in instead.',
+  'auth/weak-password': 'Choose a stronger password (at least 6 characters).',
+  'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
+  'auth/network-request-failed': 'Network error. Check your connection and try again.',
+}
+
+function describeAuthError(error, fallback) {
+  return AUTH_ERROR_MESSAGES[error?.code] || fallback
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -84,8 +99,8 @@ export function AuthProvider({ children }) {
     try {
       await signInWithEmailAndPassword(auth, normalizedEmail, password)
       return true
-    } catch {
-      setAuthError('Login failed. Check email/password and try again.')
+    } catch (error) {
+      setAuthError(describeAuthError(error, 'Login failed. Check email/password and try again.'))
       return false
     }
   }
@@ -102,8 +117,8 @@ export function AuthProvider({ children }) {
     try {
       await createUserWithEmailAndPassword(auth, normalizedEmail, password)
       return true
-    } catch {
-      setAuthError('Signup failed. Use an allowed email and stronger password.')
+    } catch (error) {
+      setAuthError(describeAuthError(error, 'Signup failed. Please try again.'))
       return false
     }
   }
@@ -138,8 +153,8 @@ export function AuthProvider({ children }) {
       }).catch(() => {})
 
       return true
-    } catch {
-      setAuthError('Signup failed. Use an allowed email and stronger password.')
+    } catch (error) {
+      setAuthError(describeAuthError(error, 'Signup failed. Please try again.'))
       return false
     }
   }
